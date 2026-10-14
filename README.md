@@ -11,15 +11,14 @@ App de gestão da Barba & Narga · Club Secreto (barbearia, bar e narga), feito 
 | Barbeiro (funcionário) | lucas | equipe2026 |
 | Lounge e bar (funcionário) | matheus | equipe2026 |
 
-## O que tem
-- Login por pessoa, com tipo **Dono** ou **Funcionário** (permissões em `PERMS`)
-- Agenda por barbeiro, com início e conclusão de atendimento, pagamento e consumo do cliente
-- Página de agendamento do cliente (serviço → barbeiro → horário livre)
-- Estoque separado em Barbearia, Tabacaria e Bar, com entrada, baixa e alertas de mínimo
-- Sessão de narga dá baixa automática de essência (15 g), carvão (3 cubos) e piteira (1)
-- Separação **Barbearia × Lounge** pelo horário (padrão: sex, sáb e dom das 20h às 3h); venda no lounge bloqueada fora dos dias de lounge
-- Noites de lounge: tudo o que foi vendido em cada noite, pagamentos, quem lançou, saída de estoque e lucro estimado
-- Relatórios, equipe e acessos, serviços e preços (só dono)
+## O que tem (5 telas)
+- **Resultados** (só dono): quanto entrou hoje, em 7 ou 30 dias, separado entre barbearia (serviços + consumo) e lounge; barbeiros e comissões; cada noite de lounge com tudo o que foi vendido.
+- **Agenda:** horários por barbeiro. Ao concluir, o barbeiro cobra o serviço e o que o cliente consumiu num pagamento só.
+- **Vendas:** o caixa. Um jeito só de vender bebida, narga ou produto. O período (barbearia ou lounge) é definido pelo horário.
+- **Estoque:** uma tela com os três setores. Vendas dão baixa sozinhas; cada narga desconta essência, carvão e piteira.
+- **Ajustes** (só dono): equipe e acessos, serviços e preços, horário do lounge, página de agendamento do cliente.
+
+Funcionário vê só Agenda, Vendas e Estoque.
 
 ## Limitações do protótipo
 - Os dados ficam no navegador de quem abre (`localStorage`) e voltam ao exemplo a cada dia.
