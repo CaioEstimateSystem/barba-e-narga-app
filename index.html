@@ -231,6 +231,7 @@ td.r,th.r{text-align:right}
 .pname{font-weight:600}
 .psub{color:var(--muted);font-size:14px}
 .qty{display:inline-flex;align-items:baseline;gap:4px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+@media (max-width:360px){.pill{white-space:normal}.li .grow{min-width:0}.li .grow .t,.li .grow .d{overflow-wrap:anywhere}}
 .qty small{font-weight:500;color:var(--muted);font-size:13px}
 .bar{height:6px;border-radius:99px;background:var(--surface-2);border:1px solid var(--line);overflow:hidden;width:80px;margin-top:6px}
 .bar i{display:block;height:100%;background:var(--ok)}
@@ -343,6 +344,7 @@ button.li:hover{background:var(--surface-2)}
 .day b{font-family:var(--f-display);font-weight:400;font-size:20px}
 .day.on{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
 .day.on span{color:var(--brand-ink)}
+.day:disabled{opacity:.35;cursor:not-allowed;text-decoration:line-through}
 .slots{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 @media (min-width:600px){.slots{grid-template-columns:repeat(6,1fr)}}
 .slot{padding:11px 0;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-weight:600;font-size:14px;cursor:pointer;color:inherit;font-family:inherit}
@@ -428,6 +430,25 @@ tr.click{cursor:pointer}
 .chip.sm{min-height:34px;padding:5px 12px;font-size:13px}
 @media (max-width:900px){.ped-lanes{grid-template-columns:1fr!important}}
 @media (max-width:420px){.tabbar a span{font-size:10px}}
+
+/* sincronização e primeiro acesso */
+.syncst{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);font-weight:600}
+.syncst.sm{margin-left:auto;margin-right:8px}
+.sdot{width:8px;height:8px;border-radius:50%;display:inline-block;background:var(--faint)}
+.sdot.ok{background:var(--ok)}.sdot.wait{background:var(--warn)}.sdot.off{background:var(--bad)}.sdot.demo{background:var(--brand)}
+.alerta-fixo{position:sticky;top:0;z-index:80;background:var(--bad);color:#fff;padding:12px 16px;font-weight:600;text-align:center}
+.spin{width:36px;height:36px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--brand);animation:gira 1s linear infinite}
+@keyframes gira{to{transform:rotate(360deg)}}
+@media (max-width:420px){.syncst.sm{font-size:0;gap:0;margin-right:4px}.syncst.sm .sdot{width:10px;height:10px}}
+
+.demo-det summary{cursor:pointer;color:var(--link);font-weight:600;font-size:14px;min-height:40px;display:flex;align-items:center;list-style:none}
+.demo-det summary::-webkit-details-marker{display:none}
+
+.passos{border-color:var(--brand)}
+.pchk{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;flex:none;color:#0b1a10}
+.pchk.ok{background:var(--ok);border-color:var(--ok)}
+.pchk svg{width:15px;height:15px}
+.li.click{cursor:pointer}.li.click:hover{background:var(--surface-2)}
 </style>
 
 <div id="root"></div>
@@ -444,7 +465,7 @@ const KEY = 'barbaenarga.app.v5';
 const $ = (s, el=document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const brl = n => (n||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
-const uid = () => Math.random().toString(36).slice(2,10);
+const uid = () => Math.random().toString(36).slice(2,8)+Date.now().toString(36).slice(-6);
 const pad = n => String(n).padStart(2,'0');
 const iso = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const addDays = (d,n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
@@ -461,8 +482,13 @@ const dayLabel = s => { if(s===TODAY) return 'Hoje'; if(s===iso(addDays(new Date
 const numIn = v => parseFloat(String(v).replace(/\./g,'').replace(',','.')) || 0;
 const fmtQ = q => (Math.round(q*100)/100).toLocaleString('pt-BR');
 const plural = (n,a,b) => `${n} ${n===1?a:b}`;
-const OPEN = 9*60, CLOSE = 21*60;
-const NARGA = {preco:60, ess:15, carvao:3, piteira:1};
+const HORARIO_PADRAO = {abre:'09:00', fecha:'21:00', fechado:[1]};
+const NARGA_PADRAO = {preco:60, ess:15, carvao:3, piteira:1};
+// Lidos da configuração da casa (Ajustes); valem os padrões até o dono mudar
+const NARGA = { get preco(){ return cfgNarga().preco; }, get ess(){ return cfgNarga().ess; }, get carvao(){ return cfgNarga().carvao; }, get piteira(){ return cfgNarga().piteira; } };
+const H = { get open(){ return toMin(cfgHorario().abre); }, get close(){ return toMin(cfgHorario().fecha); }, get fechado(){ return cfgHorario().fechado||[]; } };
+const cfgNarga = () => ({...NARGA_PADRAO, ...((typeof DB!=='undefined' && DB && DB.cfg && DB.cfg.narga)||{})});
+const cfgHorario = () => ({...HORARIO_PADRAO, ...((typeof DB!=='undefined' && DB && DB.cfg && DB.cfg.horario)||{})});
 const PAYS = ['Pix','Cartão','Dinheiro'];
 const SETOR = {barbearia:'Barbearia', tabacaria:'Tabacaria', bar:'Bar'};
 const LOUNGE_PADRAO = {dias:[5,6,0], inicio:'20:00', fim:'03:00'};
@@ -520,15 +546,8 @@ function regraLounge(){ const c = loungeCfg(); return `${[1,2,3,4,5,6,0].filter(
 
 /* ---------- dados de demonstração ---------- */
 function rng(seed){ return () => { seed = (seed*16807) % 2147483647; return (seed-1)/2147483646; }; }
-function seed(){
-  const R = rng(2017), pick = a => a[Math.floor(R()*a.length)];
-  const users = [
-    {id:'u1',nome:'Roberto',usuario:'roberto',senha:'barba2026',papel:'dono',funcao:'Sócio-proprietário',com:0,ativo:true},
-    {id:'u2',nome:'Lucas',usuario:'lucas',senha:'equipe2026',papel:'funcionario',funcao:'Barbeiro',com:50,ativo:true},
-    {id:'u3',nome:'Diego',usuario:'diego',senha:'equipe2026',papel:'funcionario',funcao:'Barbeiro',com:50,ativo:true},
-    {id:'u4',nome:'Rafa',usuario:'rafa',senha:'equipe2026',papel:'funcionario',funcao:'Barbeiro',com:45,ativo:true},
-    {id:'u5',nome:'Matheus',usuario:'matheus',senha:'equipe2026',papel:'funcionario',funcao:'Lounge e bar',com:0,ativo:true,pedidos:true},
-  ];
+// Catálogo inicial (serviços e produtos). No modo oficial entra com estoque zerado para a contagem real.
+function catalogo(){
   const services = [
     {id:'s1',nome:'Cabelo',preco:45,dur:30},{id:'s2',nome:'Barba',preco:35,dur:30},{id:'s3',nome:'Cabelo e barba',preco:70,dur:60},
     {id:'s4',nome:'Cabelo, barba e sobrancelha',preco:80,dur:60},{id:'s5',nome:'Sobrancelha',preco:15,dur:30},{id:'s6',nome:'Pigmentação',preco:40,dur:30},{id:'s7',nome:'Platinado',preco:150,dur:120},
@@ -559,6 +578,18 @@ function seed(){
     P('b19','bar','Tequila José Cuervo (dose)','doses',8,10,6,25,1,{cat:'Doses'}), P('b20','bar','Jägermeister (dose)','doses',15,10,8,28,1,{cat:'Doses'}),
     P('b6','bar','Gin tônica','doses',7,10,6,30,1,{cat:'Doses'}),
   ];
+  return {services, produtos};
+}
+function seed(){
+  const R = rng(2017), pick = a => a[Math.floor(R()*a.length)];
+  const {services, produtos} = catalogo();
+  const users = [
+    {id:'u1',nome:'Roberto',usuario:'roberto',senha:'barba2026',papel:'dono',funcao:'Sócio-proprietário',com:0,ativo:true},
+    {id:'u2',nome:'Lucas',usuario:'lucas',senha:'equipe2026',papel:'funcionario',funcao:'Barbeiro',com:50,ativo:true},
+    {id:'u3',nome:'Diego',usuario:'diego',senha:'equipe2026',papel:'funcionario',funcao:'Barbeiro',com:50,ativo:true},
+    {id:'u4',nome:'Rafa',usuario:'rafa',senha:'equipe2026',papel:'funcionario',funcao:'Barbeiro',com:45,ativo:true},
+    {id:'u5',nome:'Matheus',usuario:'matheus',senha:'equipe2026',papel:'funcionario',funcao:'Lounge e bar',com:0,ativo:true,pedidos:true},
+  ];
   const custoNarga = e => e.custo*NARGA.ess + .45*NARGA.carvao + .2*NARGA.piteira;
   const nargaItem = e => ({key:'n:'+e.id, label:'Narga · '+e.ess, qtd:1, preco:NARGA.preco, custo:custoNarga(e)});
   const barItem = (p,q) => ({key:'p:'+p.id, label:p.nome, qtd:q, preco:p.preco, custo:p.custo*q});
@@ -574,8 +605,8 @@ function seed(){
     const date = iso(addDays(new Date(),d)), dow = parse(date).getDay(), base = parse(date).getTime();
     if(dow===1) continue; // segunda fechado (exemplo)
     ['u2','u3','u4'].forEach(b=>{
-      let t = OPEN + Math.floor(R()*3)*30; const n = 4+Math.floor(R()*5)+(dow===6?2:0);
-      for(let k=0;k<n && t<CLOSE-60;k++){
+      let t = H.open + Math.floor(R()*3)*30; const n = 4+Math.floor(R()*5)+(dow===6?2:0);
+      for(let k=0;k<n && t<H.close-60;k++){
         const s = pick(services.slice(0,6));
         const bk = {id:uid(),date,time:toT(t),barber:b,cliente:cli(),tel:'',service:s.id,valor:s.preco,status:'concluido',pay:pick(PAYS),origem:R()>.5?'cliente':'balcao'};
         bookings.push(bk); consumo(bk); t += s.dur + Math.floor(R()*3)*30;
@@ -590,11 +621,19 @@ function seed(){
       }
     }
   }
-  const hoje = [
-    ['u2','09:00','s3','concluido','Pix'],['u2','10:00','s1','concluido','Cartão'],['u2','10:30','s2','concluido','Dinheiro'],['u2','13:00','s4','concluido','Pix'],['u2','14:00','s1','atendendo'],['u2','15:00','s3','agendado',null,'cliente'],['u2','17:00','s1','agendado'],
-    ['u3','09:30','s1','concluido','Cartão'],['u3','10:00','s6','concluido','Pix'],['u3','11:00','s3','concluido','Pix'],['u3','14:30','s2','agendado'],['u3','16:00','s7','agendado',null,'cliente'],['u3','18:30','s3','agendado'],
-    ['u4','10:00','s2','concluido','Dinheiro'],['u4','11:30','s1','concluido','Pix'],['u4','15:00','s5','agendado'],['u4','15:30','s1','agendado',null,'cliente'],['u4','19:00','s3','agendado',null,'cliente'],
-  ];
+  // hoje, relativo à hora atual: o que já passou está concluído, um cliente na cadeira agora, o resto marcado
+  const nowM = new Date().getHours()*60+new Date().getMinutes();
+  const slotAgora = Math.max(H.open, Math.min(H.close-60, Math.floor(nowM/30)*30));
+  const hoje = [];
+  [['u2',0],['u3',30],['u4',60]].forEach(([b,off],bi)=>{
+    for(let t=H.open+off; t<=H.close-60; t+=90){
+      const s = pick(['s1','s2','s3','s1','s4','s6']);
+      const fim = t + (s==='s3'||s==='s4'?60:30);
+      if(b==='u2' && t<=slotAgora && slotAgora<t+90){ hoje.push([b,toT(slotAgora),'s1','atendendo']); continue; }
+      if(fim <= nowM) hoje.push([b,toT(t),s,'concluido',pick(PAYS)]);
+      else if(t >= nowM && R()<.7) hoje.push([b,toT(t),s,'agendado',null,R()<.45?'cliente':null]);
+    }
+  });
   const now = Date.now();
   hoje.forEach(([b,t,s,st,pay,or])=>{ const sv = services.find(x=>x.id===s); const bk = {id:uid(),date:TODAY,time:t,barber:b,cliente:cli(),tel:tel(),service:s,valor:sv.preco,status:st,pay:pay||null,origem:or||'balcao'}; bookings.push(bk); if(st==='concluido' && parse(TODAY).getTime()+toMin(t)*60e3<now) consumo(bk); });
   [[1,'u3','10:00','s3'],[1,'u4','11:00','s1'],[1,'u2','14:00','s2'],[1,'u2','16:30','s4'],[2,'u3','10:00','s3'],[2,'u4','18:00','s1']]
@@ -617,22 +656,151 @@ function seed(){
   return {ver:4, seededFor:TODAY, users, services, produtos, bookings, vendas, movs, cfg:{lounge:{...LOUNGE_PADRAO}}};
 }
 
-/* ---------- persistência (navegador) ---------- */
+/* =========================================================
+   DADOS: dois modos
+   - demonstração: dados de exemplo neste aparelho, renovados todo dia
+   - oficial: dados da casa na nuvem (Supabase), iguais em todos os celulares
+   Um aparelho entra no modo oficial ao abrir o link de conexão que o dono compartilha.
+   ========================================================= */
+const NUVEM = {url:'', key:'', casa:'barbaenarga'};
+const temNuvem = () => /^(https:\/\/|http:\/\/127\.0\.0\.1:)/.test(NUVEM.url) && NUVEM.key.length>20;
+const KEY_DEMO = KEY, KEY_OF = 'barbaenarga.oficial.v1', KEY_SEG = 'barbaenarga.segredo';
+let SEGREDO = null;
+try{ SEGREDO = localStorage.getItem(KEY_SEG); }catch(e){}
+// link de conexão: ...#conectar=<código>
+try{ const m = location.hash.match(/^#conectar=([A-Za-z0-9_-]{8,80})$/); if(m){ SEGREDO = m[1]; localStorage.setItem(KEY_SEG, SEGREDO); history.replaceState(null,'',location.pathname); } }catch(e){}
+const MODO = (temNuvem() && SEGREDO) ? 'oficial' : 'demo';
+const oficial = () => MODO==='oficial';
+const digitando = () => { const a = document.activeElement; return !!(a && a.matches && a.matches('#root input, #root textarea, #root select')); };
+const COLS = ['users','services','produtos','bookings','vendas','movs'];
+const vazio = () => ({ver:4, users:[], services:[], produtos:[], bookings:[], vendas:[], movs:[], cfg:{}});
+
 let DB;
+let ultimoSalvo = null;
+// ---- estado da sincronização (modo oficial) ----
+const SYNC = { shadow:{}, pendentes:{}, desde:'1970-01-01T00:00:00.000000Z', pronto:false, online:true, erro:null, enviando:false, timer:null, ultimaPuxada:0 };
+const chave = (col,id) => col+'/'+id;
+function serial(col, r){
+  if(col==='produtos'){ const {qtd, ...resto} = r; return resto; } // a quantidade é calculada pelas movimentações
+  if(col==='users'){ const {senha, ...resto} = r; return resto; }    // senha nunca vai em texto
+  return r;
+}
+function recalcEstoque(){
+  if(!oficial()) return;
+  const soma = {}; DB.movs.forEach(m=>{ soma[m.prod] = (soma[m.prod]||0) + m.delta; });
+  DB.produtos.forEach(p=>{ p.qtd = Math.max(0, Math.round(((p.qtd0||0) + (soma[p.id]||0))*100)/100); });
+}
+function guardarCache(){
+  try{ localStorage.setItem(KEY_OF, JSON.stringify({DB, shadow:SYNC.shadow, pendentes:SYNC.pendentes, desde:SYNC.desde})); }catch(e){}
+}
 function load(){
-  try{ const raw = localStorage.getItem(KEY); const d = JSON.parse(raw||'null'); if(d && d.ver===4 && d.seededFor===TODAY){ DB = d; ultimoSalvo = raw; return; } }catch(e){}
+  if(oficial()){
+    try{ const c = JSON.parse(localStorage.getItem(KEY_OF)||'null'); if(c && c.DB){ DB = c.DB; SYNC.shadow = c.shadow||{}; SYNC.pendentes = c.pendentes||{}; SYNC.desde = c.desde||SYNC.desde; SYNC.pronto = true; } }catch(e){}
+    if(!DB) DB = vazio();
+    COLS.forEach(c=>{ if(!Array.isArray(DB[c])) DB[c] = []; }); if(!DB.cfg) DB.cfg = {};
+    recalcEstoque();
+    return;
+  }
+  try{ const raw = localStorage.getItem(KEY_DEMO); const d = JSON.parse(raw||'null'); if(d && d.ver===4 && d.seededFor===TODAY){ DB = d; ultimoSalvo = raw; return; } }catch(e){}
   DB = seed(); save();
 }
-let ultimoSalvo = null;
-function save(){ try{ ultimoSalvo = JSON.stringify(DB); localStorage.setItem(KEY, ultimoSalvo); }catch(e){} }
+function save(){
+  if(!oficial()){ try{ ultimoSalvo = JSON.stringify(DB); localStorage.setItem(KEY_DEMO, ultimoSalvo); }catch(e){} return; }
+  // compara cada registro com a última versão sincronizada e marca o que mudou
+  const vistos = new Set();
+  COLS.forEach(col=>DB[col].forEach(r=>{ const k = chave(col,r.id); vistos.add(k); const d = serial(col,r), j = JSON.stringify(d); if(SYNC.shadow[k]!==j) SYNC.pendentes[k] = {col, id:r.id, data:d, deleted:false}; }));
+  const kc = chave('cfg','main'); vistos.add(kc); const jc = JSON.stringify(DB.cfg||{}); if(SYNC.shadow[kc]!==jc && (Object.keys(DB.cfg||{}).length || SYNC.shadow[kc])) SYNC.pendentes[kc] = {col:'cfg', id:'main', data:DB.cfg||{}, deleted:false};
+  Object.keys(SYNC.shadow).forEach(k=>{ if(!vistos.has(k)){ const [col, ...rest] = k.split('/'); SYNC.pendentes[k] = {col, id:rest.join('/'), data:{}, deleted:true}; } });
+  guardarCache(); agendarEnvio(300);
+}
+async function rpc(fn, args){
+  const h = {'Content-Type':'application/json', apikey:NUVEM.key};
+  if(!/^sb_/.test(NUVEM.key)) h.Authorization = 'Bearer '+NUVEM.key;
+  const r = await fetch(`${NUVEM.url}/rest/v1/rpc/${fn}`, {method:'POST', headers:h, body:JSON.stringify(args)});
+  const txt = await r.text(); let j = null; try{ j = txt ? JSON.parse(txt) : null; }catch(e){}
+  if(!r.ok){ const e = new Error((j && (j.message||j.hint)) || ('HTTP '+r.status)); e.status = r.status; e.code = j && j.code; throw e; }
+  return j;
+}
+function agendarEnvio(ms){ clearTimeout(SYNC.timer); SYNC.timer = setTimeout(enviar, ms); }
+async function enviar(){
+  if(!oficial() || SYNC.enviando) return;
+  const lote = Object.entries(SYNC.pendentes).slice(0,200);
+  if(!lote.length) return;
+  SYNC.enviando = true;
+  try{
+    await rpc('sync_enviar', {p_casa:NUVEM.casa, p_segredo:SEGREDO, p_linhas:lote.map(([,v])=>v)});
+    lote.forEach(([k,v])=>{ if(SYNC.pendentes[k]===v){ delete SYNC.pendentes[k]; if(v.deleted) delete SYNC.shadow[k]; else SYNC.shadow[k] = JSON.stringify(v.data); } });
+    SYNC.online = true; SYNC.erro = null; guardarCache();
+    if(Object.keys(SYNC.pendentes).length) agendarEnvio(50);
+  }catch(e){
+    SYNC.online = false; SYNC.erro = e; if(e.code==='28000' || /segredo/i.test(e.message)) codigoInvalido();
+    agendarEnvio(5000);
+  }finally{ SYNC.enviando = false; pintarSync(); }
+}
+async function puxar(){
+  if(!oficial()) return;
+  try{
+    let mudou = false, rodadas = 0;
+    while(rodadas++ < 50){
+      const linhas = await rpc('sync_puxar', {p_casa:NUVEM.casa, p_segredo:SEGREDO, p_desde:SYNC.desde, p_folga:rodadas===1}) || [];
+      linhas.forEach(l=>{
+        if(l.updated_at > SYNC.desde) SYNC.desde = l.updated_at;
+        const k = chave(l.col,l.id);
+        if(SYNC.pendentes[k]) return;                      // alteração local ainda não enviada vence
+        const j = JSON.stringify(l.data);
+        if(l.deleted){ if(!(k in SYNC.shadow)) return; delete SYNC.shadow[k]; if(l.col==='cfg') return; DB[l.col] = (DB[l.col]||[]).filter(r=>r.id!==l.id); mudou = true; return; }
+        if(SYNC.shadow[k]===j) return;
+        SYNC.shadow[k] = j; mudou = true;
+        if(l.col==='cfg'){ DB.cfg = l.data||{}; return; }
+        if(!DB[l.col]) return;
+        const i = DB[l.col].findIndex(r=>r.id===l.id);
+        if(i>=0) DB[l.col][i] = {...l.data}; else DB[l.col].push({...l.data});
+      });
+      if(linhas.length < 1000) break;
+    }
+    const primeira = !SYNC.pronto; SYNC.pronto = true; SYNC.online = true; SYNC.erro = null; SYNC.ultimaPuxada = Date.now();
+    if(mudou || primeira){ recalcEstoque(); guardarCache(); avisarNovos(primeira); if(!document.querySelector('.modal-bg') && !digitando()) render(); }
+  }catch(e){
+    SYNC.online = false; SYNC.erro = e; if(e.code==='28000' || /segredo/i.test(e.message)) codigoInvalido();
+    if(!SYNC.pronto){ render(); }
+  }
+  pintarSync();
+}
+function codigoInvalido(){
+  try{ localStorage.removeItem(KEY_SEG); localStorage.removeItem(KEY_OF); }catch(e){}
+  alertaFixo('O link de conexão deste aparelho não vale mais. Peça ao dono um link novo.');
+}
+function alertaFixo(msg){ let b = document.getElementById('alerta-fixo'); if(!b){ b = document.createElement('div'); b.id = 'alerta-fixo'; b.className = 'alerta-fixo'; document.body.prepend(b); } b.textContent = msg; }
+function pintarSync(){
+  document.querySelectorAll('[data-sync]').forEach(el=>{
+    if(!oficial()){ el.innerHTML = '<i class="sdot demo"></i>Demonstração'; el.title = 'Dados de exemplo, só neste aparelho'; return; }
+    const n = Object.keys(SYNC.pendentes).length;
+    el.innerHTML = SYNC.online ? (n ? `<i class="sdot wait"></i>Salvando…` : '<i class="sdot ok"></i>Sincronizado') : `<i class="sdot off"></i>Sem conexão${n?` · ${n} na fila`:''}`;
+    el.title = SYNC.online ? 'Tudo salvo na nuvem' : 'Sem internet. O que for lançado fica guardado e sobe quando voltar.';
+  });
+}
+if(oficial()){
+  setInterval(()=>{ if(document.visibilityState==='visible') puxar(); }, 4000);
+  document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible'){ puxar(); enviar(); } });
+  window.addEventListener('online', ()=>{ enviar(); puxar(); });
+}
+// ---- senhas: no modo oficial só o resumo (hash) fica guardado ----
+async function hashSenha(userId, senha){
+  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${NUVEM.casa}:${userId}:${senha}`));
+  return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+async function confereSenha(u, senha){ if(u.hash) return u.hash === await hashSenha(u.id, senha); return u.senha === senha; }
+
 load();
+if(oficial()){ puxar(); enviar(); }
 let SESSION = null;
-try{ SESSION = localStorage.getItem(KEY+'.sess'); }catch(e){}
+const KEY_SESS = (oficial()?KEY_OF:KEY_DEMO)+'.sess';
+try{ SESSION = localStorage.getItem(KEY_SESS); }catch(e){}
 const currentUser = () => DB.users.find(u=>u.id===SESSION && u.ativo);
 const userName = id => (DB.users.find(u=>u.id===id)||{}).nome || '—';
 const SV = id => DB.services.find(s=>s.id===id) || {nome:'Serviço',preco:0,dur:30};
 const prod = id => DB.produtos.find(p=>p.id===id);
-const isBarber = u => /barbeir/i.test(u.funcao||'');
+const isBarber = u => (u.barbeiro!==undefined ? !!u.barbeiro : /barbeir/i.test(u.funcao||''));
 const barbers = () => DB.users.filter(u=>u.ativo && isBarber(u));
 const initial = n => esc((n||'?').trim()[0].toUpperCase());
 
@@ -677,21 +845,23 @@ function freeSlots(date, barber, dur, ignoreId){
   const busy = DB.bookings.filter(b=>b.date===date && b.barber===barber && b.status!=='cancelado' && b.id!==ignoreId).map(b=>[toMin(b.time), toMin(b.time)+SV(b.service).dur]);
   const n = new Date(), nowM = n.getHours()*60+n.getMinutes();
   const out = [];
-  for(let t=OPEN; t+dur<=CLOSE; t+=30) out.push({t:toT(t), ok: !busy.some(([a,b])=>t<b && t+dur>a) && !(date===TODAY && t<nowM)});
+  if(H.fechado.includes(parse(date).getDay())) return [];
+  for(let t=H.open; t+dur<=H.close; t+=30) out.push({t:toT(t), ok: !busy.some(([a,b])=>t<b && t+dur>a) && !(date===TODAY && t<nowM)});
   return out;
 }
 function moveStock(id, delta, obs){
   const p = prod(id); if(!p) return null;
   p.qtd = Math.max(0, Math.round((p.qtd+delta)*100)/100);
+  if(oficial()) setTimeout(recalcEstoque, 0);
   const m = {id:uid(), prod:id, delta, obs, user:currentUser().id, ts:Date.now()};
   DB.movs.unshift(m); return m;
 }
-function undoMoves(ms){ ms.forEach(m=>{ if(!m) return; const p = prod(m.prod); if(p) p.qtd = Math.round((p.qtd-m.delta)*100)/100; DB.movs = DB.movs.filter(x=>x.id!==m.id); }); }
+function undoMoves(ms){ ms.forEach(m=>{ if(!m) return; const p = prod(m.prod); if(p) p.qtd = Math.round((p.qtd-m.delta)*100)/100; DB.movs = DB.movs.filter(x=>x.id!==m.id); }); recalcEstoque(); }
 
 /* ---------- cardápio de venda (o mesmo em todo lugar) ---------- */
 // Narga sai por sabor (cada sessão desconta essência, carvão e piteira); bebidas e produtos saem pela unidade
 function cardapio(){
-  const carvao = prod('carvao')?.qtd||0, pit = prod('piteira')?.qtd||0;
+  const carvao = prod('carvao') ? prod('carvao').qtd : Infinity, pit = prod('piteira') ? prod('piteira').qtd : Infinity;
   const narga = DB.produtos.filter(p=>p.ess).map(e=>({key:'n:'+e.id, label:'Narga · '+e.ess, grp:'Narga', preco:NARGA.preco,
     max:Math.min(Math.floor(e.qtd/NARGA.ess), Math.floor(carvao/NARGA.carvao), Math.floor(pit/NARGA.piteira)),
     custo:e.custo*NARGA.ess + (prod('carvao')?.custo||0)*NARGA.carvao + (prod('piteira')?.custo||0)*NARGA.piteira}));
@@ -766,10 +936,11 @@ function render(){
       <div class="me">
         <div class="me-row"><div class="avatar">${initial(u.nome)}</div><div><div class="me-name">${esc(u.nome)}</div><span class="pill ${u.papel==='dono'?'info':'mute'} nodot">${PAPEIS[u.papel]}</span></div></div>
         <div style="display:flex;gap:6px"><button class="btn sm" data-theme-t>${ICON.moon}Tema</button><button class="btn sm" data-logout>${ICON.out}Sair</button></div>
+        <span class="syncst" data-sync></span>
       </div>
     </aside>
     <div style="min-width:0">
-      <header class="topbar">${logoHTML()}<button class="me-btn" data-menu aria-label="Conta"><span class="avatar">${initial(u.nome)}</span><span class="pill ${u.papel==='dono'?'info':'mute'} nodot">${PAPEIS[u.papel]}</span></button></header>
+      <header class="topbar">${logoHTML()}<span class="syncst sm" data-sync></span><button class="me-btn" data-menu aria-label="Conta"><span class="avatar">${initial(u.nome)}</span><span class="pill ${u.papel==='dono'?'info':'mute'} nodot">${PAPEIS[u.papel]}</span></button></header>
       <main class="main" id="view" tabindex="-1"></main>
     </div>
     <nav class="tabbar" aria-label="Principal">${routes.map(r=>`<a href="#${r.id}" class="${r.id===UI.route?'on':''}" data-go="${r.id}">${ICON[r.icon]}<span>${r.label}</span>${r.id==='pedidos'&&abertos?`<b class="tbadge num">${abertos}</b>`:''}</a>`).join('')}</nav>
@@ -783,6 +954,7 @@ function render(){
   document.title = (abertos?`(${abertos}) `:'')+r.label+' · Barba & Narga';
   r.render();
   labelTables();
+  pintarSync();
 }
 function labelTables(){
   document.querySelectorAll('.tbl-wrap table').forEach(t=>{
@@ -833,37 +1005,85 @@ function loginHTML(){
       </div>
       <p class="seal-foot">Acesso restrito à equipe da casa.</p>
     </section>
-    <section class="login-form">
-      <form class="login-card" id="lf" autocomplete="off">
-        <div><span class="label">Área da equipe</span><h2 style="margin-top:10px">Entrar</h2><p class="lead">Cada pessoa da casa tem o seu login.</p></div>
-        <label class="f">Usuário<input class="in" id="lu" autocapitalize="none" autocomplete="username" placeholder="ex.: lucas"></label>
-        <label class="f">Senha<input class="in" id="lp" type="password" autocomplete="current-password" placeholder="••••••••"></label>
-        <div class="err" id="le" style="min-height:0"></div>
-        <button class="btn pri block" type="submit">Entrar</button>
-        <div class="who"><small>Entrar como demonstração</small>
-          ${demo.map(([u,n,r])=>`<button type="button" class="who-btn" data-demo="${u}"><span class="avatar">${n[0]}</span><span class="g"><b>${n}</b><span>${r}</span></span><span class="go">Entrar →</span></button>`).join('')}
-        </div>
-        <div class="or">ou</div>
-        <button type="button" class="btn block" id="as-cli">${ICON.agenda}Sou cliente · agendar horário</button>
-        <p class="note" style="margin:0;text-align:center">Protótipo de apresentação. Nomes, preços e quantidades são exemplos.</p>
-      </form>
-    </section>
+    <section class="login-form">${loginForm()}</section>
   </main>`;
 }
+function loginForm(){
+  const demo = [['roberto','Roberto','Dono · vê tudo'],['lucas','Lucas','Barbeiro · funcionário'],['matheus','Matheus','Lounge e bar · funcionário']];
+  if(oficial() && !SYNC.pronto){
+    return `<div class="login-card"><span class="label">Conectando</span><h2 style="margin-top:10px">Carregando a casa…</h2>
+      <p class="lead">${SYNC.erro?'Sem conexão com a internet. Assim que voltar, o app carrega sozinho.':'Buscando os dados da Barba &amp; Narga.'}</p>
+      ${SYNC.erro?`<button class="btn pri block" id="lg-retry">Tentar de novo</button>`:'<div class="spin" aria-hidden="true"></div>'}</div>`;
+  }
+  if(oficial() && !DB.users.length){
+    return `<form class="login-card" id="setup" autocomplete="off">
+      <div><span class="label">Primeiro acesso</span><h2 style="margin-top:10px">Configurar a casa</h2><p class="lead">Crie o login do dono. Depois você cadastra a equipe, confere preços e faz a contagem do estoque em Ajustes e Estoque.</p></div>
+      <label class="f">Seu nome<input class="in" id="st-n" autocomplete="name" placeholder="ex.: Roberto"></label>
+      <label class="f">Usuário para entrar<input class="in" id="st-u" autocapitalize="none" autocomplete="username" placeholder="ex.: roberto"></label>
+      <div class="grid2"><label class="f">Senha<input class="in" id="st-s" type="password" autocomplete="new-password"></label><label class="f">Repita a senha<input class="in" id="st-s2" type="password" autocomplete="new-password"></label></div>
+      <div class="err" id="st-err" style="min-height:0"></div>
+      <button class="btn pri block" type="submit">Criar e entrar</button>
+      <p class="note" style="margin:0">Já entram os serviços, produtos do bar, essências e a regra do lounge como ponto de partida, com o estoque zerado. Tudo pode ser editado.</p>
+    </form>`;
+  }
+  return `<form class="login-card" id="lf" autocomplete="off">
+    <div><span class="label">Área da equipe</span><h2 style="margin-top:10px">Entrar</h2><p class="lead">Cada pessoa da casa tem o seu login.</p></div>
+    <label class="f">Usuário<input class="in" id="lu" autocapitalize="none" autocomplete="username" placeholder="ex.: lucas"></label>
+    <label class="f">Senha<input class="in" id="lp" type="password" autocomplete="current-password" placeholder="••••••••"></label>
+    <div class="err" id="le" style="min-height:0"></div>
+    <button class="btn pri block" type="submit">Entrar</button>
+    ${oficial()?'':temNuvem()?`<p class="note" style="margin:0">Este celular ainda não está conectado à casa. Abra uma vez o link de conexão que o dono mandou e depois entre com seu usuário.</p>
+    <details class="demo-det"><summary>Ver a demonstração do app</summary><div class="who" style="margin-top:10px">${demo.map(([u,n,r])=>`<button type="button" class="who-btn" data-demo="${u}"><span class="avatar">${n[0]}</span><span class="g"><b>${n}</b><span>${r}</span></span><span class="go">Entrar →</span></button>`).join('')}</div></details>`
+    :`<div class="who"><small>Entrar como demonstração</small>
+      ${demo.map(([u,n,r])=>`<button type="button" class="who-btn" data-demo="${u}"><span class="avatar">${n[0]}</span><span class="g"><b>${n}</b><span>${r}</span></span><span class="go">Entrar →</span></button>`).join('')}
+    </div>`}
+    <div class="or">ou</div>
+    <button type="button" class="btn block" id="as-cli">${ICON.agenda}Sou cliente · agendar horário</button>
+    <p class="note" style="margin:0;text-align:center" data-sync></p>
+    ${oficial()?'':`<p class="note" style="margin:0;text-align:center">Modo demonstração: nomes, preços e quantidades são exemplos e voltam ao início todo dia.</p>`}
+  </form>`;
+}
+async function primeiroAcesso(nome, usuario, senha){
+  const {services, produtos} = catalogo();
+  const dono = {id:uid(), nome, usuario, papel:'dono', funcao:'Dono', com:0, ativo:true, pedidos:false};
+  dono.hash = await hashSenha(dono.id, senha);
+  DB.users = [dono];
+  DB.services = services;
+  DB.produtos = produtos.map(p=>{ const {qtd, ...r} = p; return {...r, qtd0:0, qtd:0}; });
+  DB.cfg = {lounge:{...LOUNGE_PADRAO}, horario:{...HORARIO_PADRAO}, narga:{...NARGA_PADRAO}, criadoEm:Date.now()};
+  save();
+  return dono;
+}
+function entrar(u){
+  SESSION = u.id; try{ localStorage.setItem(KEY_SESS, u.id); }catch(e){}
+  UI.route = null; UI.agBarber = isBarber(u) ? u.id : 'all';
+  render(); window.scrollTo(0,0); toast(`Olá, ${u.nome}!`);
+}
 function bindLogin(){
-  const doLogin = (usuario, senha) => {
-    const u = DB.users.find(x=>x.usuario.toLowerCase()===usuario.trim().toLowerCase() && x.senha===senha);
-    if(!u){ $('#le').textContent='Usuário ou senha incorretos.'; return; }
+  pintarSync();
+  if($('#lg-retry')) $('#lg-retry').onclick = () => { $('#lg-retry').disabled = true; puxar(); };
+  if($('#setup')) $('#setup').onsubmit = async e => {
+    e.preventDefault();
+    const n = $('#st-n').value.trim(), u = $('#st-u').value.trim().toLowerCase(), s1 = $('#st-s').value, s2 = $('#st-s2').value;
+    if(!n || !u){ $('#st-err').textContent = 'Preencha seu nome e o usuário.'; return; }
+    if(!/^[a-z0-9._-]{3,30}$/.test(u)){ $('#st-err').textContent = 'Usuário com 3 a 30 letras ou números, sem espaço.'; return; }
+    if(s1.length < 6){ $('#st-err').textContent = 'A senha precisa de pelo menos 6 caracteres.'; return; }
+    if(s1 !== s2){ $('#st-err').textContent = 'As duas senhas não são iguais.'; return; }
+    if(DB.users.length){ render(); return; }
+    entrar(await primeiroAcesso(n, u, s1));
+  };
+  if(!$('#lf')) return;
+  const doLogin = async (usuario, senha) => {
+    const u = DB.users.find(x=>x.usuario.toLowerCase()===usuario.trim().toLowerCase());
+    if(!u || !(await confereSenha(u, senha))){ $('#le').textContent='Usuário ou senha incorretos.'; return; }
     if(!u.ativo){ $('#le').textContent='Este acesso está desativado. Fale com o dono.'; return; }
-    SESSION = u.id; try{ localStorage.setItem(KEY+'.sess', u.id); }catch(e){}
-    UI.route = null; UI.agBarber = isBarber(u) ? u.id : 'all';
-    render(); window.scrollTo(0,0); toast(`Olá, ${u.nome}!`);
+    entrar(u);
   };
   $('#lf').onsubmit = e => { e.preventDefault(); doLogin($('#lu').value, $('#lp').value); };
-  document.querySelectorAll('[data-demo]').forEach(b=>b.onclick=()=>{ const u = DB.users.find(x=>x.usuario===b.dataset.demo); doLogin(u.usuario,u.senha); });
+  document.querySelectorAll('[data-demo]').forEach(b=>b.onclick=()=>{ const u = DB.users.find(x=>x.usuario===b.dataset.demo); if(u) doLogin(u.usuario,u.senha); });
   $('#as-cli').onclick = () => openCliente();
 }
-function logout(){ SESSION=null; try{ localStorage.removeItem(KEY+'.sess'); }catch(e){} render(); window.scrollTo(0,0); }
+function logout(){ SESSION=null; try{ localStorage.removeItem(KEY_SESS); }catch(e){} render(); window.scrollTo(0,0); }
 
 /* =========================================================
    RESULTADOS (dono): quanto entrou, de onde, e cada noite de lounge
@@ -877,18 +1097,43 @@ function stats(dates){
   const serv = done.reduce((a,b)=>a+b.valor,0), con = somaV(vB), lou = somaV(vL);
   return {done, vs, vB, vL, serv, con, barb:serv+con, lou, total:serv+con+lou};
 }
+// Primeiros passos para deixar a casa pronta (só no modo oficial, para o dono)
+function passos(){
+  const p = (DB.cfg && DB.cfg.passos) || {};
+  return [
+    {id:'equipe', t:'Cadastrar a equipe', d:'Barbeiros e quem cuida do bar, cada um com seu usuário e senha.', ok:barbers().length>0 && DB.users.length>1, acao:()=>go('ajustes')},
+    {id:'precos', t:'Conferir serviços e preços', d:'Serviços, preços do bar e da narga, horário de funcionamento e do lounge.', ok:!!p.precos, acao:()=>{ marcarPasso('precos'); go('ajustes'); }},
+    {id:'estoque', t:'Fazer a contagem do estoque', d:'Quanto tem hoje de cada item. Depois o app controla sozinho.', ok:DB.movs.some(m=>m.obs==='Contagem do estoque'), acao:()=>{ go('estoque'); contagemDialog('bar'); }},
+    {id:'celulares', t:'Conectar os celulares da equipe', d:'Mande o link de conexão para cada pessoa. Está em Ajustes, no fim da página.', ok:!!p.celulares, acao:()=>{ marcarPasso('celulares'); go('ajustes'); setTimeout(()=>{ const e = $('#lk-con'); if(e) e.scrollIntoView({block:'center'}); },100); }},
+    {id:'link', t:'Colocar o link de agendamento na bio', d:'Instagram e resposta automática do WhatsApp.', ok:!!p.link, acao:()=>{ marcarPasso('link'); go('ajustes'); setTimeout(()=>{ const e = $('#lk-cli'); if(e) e.scrollIntoView({block:'center'}); },100); }},
+  ];
+}
+function marcarPasso(id){ DB.cfg.passos = {...(DB.cfg.passos||{}), [id]:true}; save(); }
+function passosHTML(){
+  if(!oficial() || !can('*') || (DB.cfg.passos && DB.cfg.passos.oculto)) return '';
+  const ps = passos(), feitos = ps.filter(x=>x.ok).length;
+  if(feitos===ps.length) return '';
+  return `<section class="card passos"><div class="card-h"><h2>Deixar a casa pronta</h2><span class="psub">${feitos} de ${ps.length} feitos</span></div>
+    <div class="list">${ps.map(x=>`<button type="button" class="li" data-passo="${x.id}"><span class="pchk ${x.ok?'ok':''}">${x.ok?ICON.check:''}</span><div class="grow"><div class="t" style="${x.ok?'text-decoration:line-through;color:var(--muted)':''}">${x.t}</div><div class="d">${x.d}</div></div>${ICON.chev.replace('<svg','<svg width="18" height="18" style="color:var(--faint)"')}</button>`).join('')}</div>
+    <button class="linkbtn" id="ps-ocultar" style="margin-top:6px">Esconder esta lista</button></section>`;
+}
+function bindPassos(v){
+  v.querySelectorAll('[data-passo]').forEach(b=>b.onclick=()=>{ const x = passos().find(y=>y.id===b.dataset.passo); if(x) x.acao(); });
+  if($('#ps-ocultar')) $('#ps-ocultar').onclick = () => { marcarPasso('oculto'); refresh(); };
+}
 function renderResultados(){
   const v = $('#view');
   const dates = datasDo(UI.rng), S = stats(dates);
   const noites = [...new Set(S.vL.map(x=>x.date))].sort().reverse().map(d=>{ const vs = S.vL.filter(x=>x.date===d); return {d, vs, total:somaV(vs)}; });
   const nomeRng = {hoje:'hoje','7d':'nos últimos 7 dias','30d':'nos últimos 30 dias'}[UI.rng];
-  const byPay = {}; S.done.forEach(b=>byPay[b.pay]=(byPay[b.pay]||0)+b.valor); S.vs.forEach(x=>byPay[x.pay]=(byPay[x.pay]||0)+x.total);
+  const byPay = {}; S.done.forEach(b=>{ if(b.pay) byPay[b.pay]=(byPay[b.pay]||0)+b.valor; }); S.vs.forEach(x=>{ if(x.pay) byPay[x.pay]=(byPay[x.pay]||0)+x.total; });
   const team = barbers().map(x=>{ const d = S.done.filter(b=>b.barber===x.id); const val = d.reduce((a,b)=>a+b.valor,0); const cons = somaV(S.vB.filter(s=>d.some(b=>b.id===s.booking))); return {x, n:d.length, val, cons, com:val*x.com/100}; });
   const low = DB.produtos.filter(p=>stockState(p)!=='ok');
   const loungeHoje = UI.rng==='hoje' && !noites.length;
   v.innerHTML = `
     <div class="head"><div><h1>Resultados</h1><p>Tudo o que entrou ${nomeRng}, separado entre barbearia e lounge.</p></div>
       <div class="seg" id="rg" style="min-width:300px">${[['hoje','Hoje'],['7d','7 dias'],['30d','30 dias']].map(([k,l])=>`<button data-v="${k}" class="${UI.rng===k?'on':''}">${l}</button>`).join('')}</div></div>
+    ${passosHTML()}
     <div class="trio">
       <div class="kpi big"><span class="l">Total</span><span class="v num">${brl(S.total)}</span><span class="s">${PAYS.map(p=>`${p} ${brl(byPay[p]||0)}`).join(' · ')}</span></div>
       <div class="kpi big"><span class="l">${ICON.barbearia}Barbearia</span><span class="v num">${brl(S.barb)}</span><span class="s">${plural(S.done.length,'atendimento','atendimentos')} · ${brl(S.serv)} em serviços + ${brl(S.con)} em consumo</span></div>
@@ -907,6 +1152,7 @@ function renderResultados(){
     </div>
     ${low.length?`<button type="button" class="alertbar" id="go-est">${ICON.estoque}<span><b>${plural(low.length,'item precisa','itens precisam')} de reposição</b> · ${low.slice(0,3).map(p=>esc(p.nome)).join(', ')}${low.length>3?'…':''}</span>${ICON.chev}</button>`:''}`;
   segBind(v,'#rg',x=>{ UI.rng=x; refresh(); });
+  bindPassos(v);
   v.querySelectorAll('[data-noite]').forEach(b=>b.onclick=()=>noiteDialog(b.dataset.noite));
   if($('#go-est')) $('#go-est').onclick = () => { UI.estAlerta = true; UI.estSetor='todos'; go('estoque'); };
   if($('#ch')) drawChart($('#ch'), dates);
@@ -964,14 +1210,15 @@ function renderAgenda(){
     meu = `<div class="mine"><span class="label">Você hoje</span><b class="num">${plural(d.length,'atendimento','atendimentos')}</b><span class="psub">comissão ${brl(d.reduce((a,b)=>a+b.valor,0)*u.com/100)} (${u.com}%)</span></div>`;
   }
   v.innerHTML = `
-    <div class="head"><div><h1>Agenda</h1><p>${dayLabel(UI.agDate)} · ${feitos} de ${doDia.length} atendidos · aberto das ${toT(OPEN)} às ${toT(CLOSE)}</p></div>
+    <div class="head"><div><h1>Agenda</h1><p>${dayLabel(UI.agDate)} · ${feitos} de ${doDia.length} atendidos · ${H.fechado.includes(parse(UI.agDate).getDay())?'fechado neste dia':`aberto das ${cfgHorario().abre} às ${cfgHorario().fecha}`}</p></div>
       <div class="actions"><button class="btn pri" id="ag-new">${ICON.plus}Novo horário</button></div></div>
     ${meu}
-    <div class="chips scroll" id="ag-d">${days.map(d=>{ const x = parse(d); return `<button class="chip ${d===UI.agDate?'on':''}" data-d="${d}">${d===TODAY?'Hoje':DOW[x.getDay()]+' '+x.getDate()}<small class="num">${cnt(d)}</small></button>`; }).join('')}</div>
+    <div class="chips scroll" id="ag-d">${days.map(d=>{ const x = parse(d); return `<button class="chip ${d===UI.agDate?'on':''}" data-d="${d}">${d===TODAY?'Hoje':DOW[x.getDay()]+' '+x.getDate()}<small class="num">${cnt(d)}</small></button>`; }).join('')}<label class="chip ${days.includes(UI.agDate)?'':'on'}" style="display:inline-flex;align-items:center;gap:6px">Outra data <input type="date" id="ag-dt" value="${UI.agDate}" style="background:transparent;border:0;color:inherit;font:inherit;width:130px"></label></div>
     <div class="chips scroll" id="ag-b"><button class="chip ${UI.agBarber==='all'?'on':''}" data-b="all">Todos</button>${barbers().map(b=>`<button class="chip ${UI.agBarber===b.id?'on':''}" data-b="${b.id}">${esc(b.nome)}</button>`).join('')}</div>
     <div class="lanes" style="grid-template-columns:repeat(${bs.length},minmax(240px,1fr))">${bs.map(b=>{ const l = of(b.id); return `<section class="lane"><h4><span style="display:flex;gap:10px;align-items:center"><span class="avatar">${initial(b.nome)}</span>${esc(b.nome)}</span><span class="c num">${l.filter(x=>x.status!=='cancelado').length} horários</span></h4>
       ${l.map(osCard).join('') || '<div class="empty" style="padding:20px 8px">Agenda livre.</div>'}</section>`; }).join('')}</div>`;
   v.querySelectorAll('#ag-d [data-d]').forEach(b=>b.onclick=()=>{ UI.agDate=b.dataset.d; refresh(); });
+  $('#ag-dt').onchange = e => { if(e.target.value){ UI.agDate = e.target.value; refresh(); } };
   v.querySelectorAll('#ag-b [data-b]').forEach(b=>b.onclick=()=>{ UI.agBarber=b.dataset.b; refresh(); });
   $('#ag-new').onclick = () => newApptDialog();
   v.querySelectorAll('[data-start]').forEach(b=>b.onclick=()=>startAppt(b.dataset.start));
@@ -1007,13 +1254,17 @@ function apptDialog(id){
       ${cons.length?`<dt>Consumo</dt><dd>${esc(cons.map(itensTxt).join(', '))} · ${brl(somaV(cons))}</dd>`:''}
       ${b.pay?`<dt>Pagamento</dt><dd>${esc(b.pay)}</dd>`:''}
     </dl>`,
-    foot: (b.status==='agendado' ? `<button class="btn danger" id="ap-cancel">Cancelar horário</button><button class="btn pri" id="ap-start">Iniciar atendimento</button>` : '') +
+    foot: (b.status==='agendado' ? `<button class="btn danger" id="ap-cancel">Cancelar horário</button><button class="btn" id="ap-move">Remarcar</button><button class="btn pri" id="ap-start">Iniciar atendimento</button>` : '') +
       (b.status==='atendendo' ? `<button class="btn pri" id="ap-fin">${ICON.check}Concluir</button>` : '') +
       (['concluido','cancelado'].includes(b.status) ? `<button class="btn" data-x>Fechar</button>` : ''),
     onMount:(el,close)=>{
       if($('#ap-start',el)) $('#ap-start',el).onclick=()=>{ close(); startAppt(id); };
+      if($('#ap-move',el)) $('#ap-move',el).onclick=()=>{ close(); newApptDialog(id); };
       if($('#ap-fin',el)) $('#ap-fin',el).onclick=()=>{ close(); finishDialog(id); };
-      if($('#ap-cancel',el)) $('#ap-cancel',el).onclick=()=>{ close(); confirmBox('Cancelar horário?', `O horário das ${b.time} com ${userName(b.barber)} volta a ficar livre.`, 'Cancelar horário', ()=>{ b.status='cancelado'; save(); refresh(); toast('Horário cancelado', ()=>{ b.status='agendado'; save(); refresh(); }); }); };
+      if($('#ap-cancel',el)) $('#ap-cancel',el).onclick=()=>{ close();
+        const aberto = DB.vendas.filter(x=>x.booking===b.id && x.pay===null);
+        if(aberto.length){ toast(`${b.cliente} tem ${brl(somaV(aberto))} de consumo em aberto. Conclua o atendimento para cobrar.`); return; }
+        confirmBox('Cancelar horário?', `O horário das ${b.time} com ${userName(b.barber)} volta a ficar livre.`, 'Cancelar horário', ()=>{ b.status='cancelado'; save(); refresh(); toast('Horário cancelado', ()=>{ b.status='agendado'; save(); refresh(); }); }); };
     }});
 }
 // Concluir = cobrar o serviço + o que o cliente consumiu, num pagamento só. O consumo conta para a barbearia.
@@ -1028,7 +1279,7 @@ function finishDialog(id){
     ${naConta.length?`<div class="msum"><div><span class="psub">Já pedido para a cadeira</span><div style="font-weight:600">${esc(naConta.map(itensTxt).join(', '))}</div></div><span class="big num">${brl(jaPedido)}</span></div>`:''}
     <div class="f"><span class="psub" style="font-weight:600">${naConta.length?'Consumiu mais alguma coisa?':'O cliente consumiu algo?'} <span style="font-weight:400">(opcional · entra como barbearia)</span></span>${cartHTML()}</div>
     <div class="f"><span class="psub" style="font-weight:600">Pagamento</span><div class="seg" id="fi-pay">${PAYS.map(p=>`<button type="button" data-v="${p}">${p}</button>`).join('')}</div></div>
-    <label class="check"><input type="checkbox" id="fi-cons" checked> Dar baixa de 1 lâmina e 1 toalha descartável</label>
+    ${prod('p3')||prod('p6')?`<label class="check"><input type="checkbox" id="fi-cons" checked> Dar baixa de ${[prod('p3')&&'1 lâmina',prod('p6')&&'1 toalha descartável'].filter(Boolean).join(' e ')}</label>`:''}
     <div class="msum"><span class="psub">Total a cobrar</span><span class="big num" id="fi-tot"></span></div>
     <div class="err" id="fi-err"></div>`,
     foot:`<button class="btn" data-x>Voltar</button><button class="btn pri" id="fi-ok">${ICON.check}Concluir e registrar</button>`,
@@ -1040,7 +1291,7 @@ function finishDialog(id){
         if(!pay){ $('#fi-err',el).textContent='Escolha a forma de pagamento.'; return; }
         const prev = {...b}; const itens = getItens();
         b.status='concluido'; b.pay=pay; b.valor=numIn($('#fi-val',el).value)||b.valor;
-        const ms = $('#fi-cons',el).checked ? [moveStock('p3',-1,'Atendimento de '+b.cliente), moveStock('p6',-1,'Atendimento de '+b.cliente)] : [];
+        const ms = ($('#fi-cons',el) && $('#fi-cons',el).checked) ? [moveStock('p3',-1,'Atendimento de '+b.cliente), moveStock('p6',-1,'Atendimento de '+b.cliente)].filter(Boolean) : [];
         let venda = null;
         if(itens.length){ ms.push(...baixarItens(itens,'Consumo de '+b.cliente)); const t = Date.now(); venda = {id:uid(),date:TODAY,ts:t,periodo:'barbearia',user:currentUser().id,pay,itens,booking:b.id,total:itens.reduce((a,i)=>a+i.preco*i.qtd,0),pedido:{status:'entregue',local:`Cadeira do ${userName(b.barber)} · ${b.cliente}`,resp:currentUser().id,ts:{novo:t,entregue:t}}}; DB.vendas.push(venda); conhecidos.add(venda.id); }
         naConta.forEach(x=>x.pay = pay);
@@ -1053,27 +1304,41 @@ function slotOpts(date, barber, svc){
   const sl = freeSlots(date, barber, SV(svc).dur).filter(s=>s.ok);
   return sl.length ? sl.map(s=>`<option>${s.t}</option>`).join('') : '<option value="">Sem horário livre neste dia</option>';
 }
-function newApptDialog(){
-  const u = currentUser();
-  const defB = isBarber(u) ? u.id : (UI.agBarber!=='all' ? UI.agBarber : barbers()[0].id);
-  modal({title:'Novo horário', body:`
-    <div class="grid2"><label class="f">Cliente<input class="in" id="na-c" placeholder="Nome do cliente"></label>
-    <label class="f">WhatsApp<input class="in" id="na-t" inputmode="tel" placeholder="(21) 99999-9999"></label></div>
-    <label class="f">Serviço<select class="in" id="na-s">${DB.services.map(s=>`<option value="${s.id}">${esc(s.nome)} · ${s.dur} min · ${brl(s.preco)}</option>`).join('')}</select></label>
+function slotOptsSel(date, barber, svc, ignoreId, atual){
+  const sl = freeSlots(date, barber, SV(svc).dur, ignoreId).filter(s=>s.ok);
+  if(atual && !sl.some(s=>s.t===atual)) sl.unshift({t:atual});
+  return sl.length ? sl.map(s=>`<option ${s.t===atual?'selected':''}>${s.t}</option>`).join('') : `<option value="">${H.fechado.includes(parse(date).getDay())?'Fechado neste dia':'Sem horário livre neste dia'}</option>`;
+}
+// Novo horário (no balcão) ou remarcar um existente
+function newApptDialog(editId){
+  const u = currentUser(), bk = editId ? DB.bookings.find(x=>x.id===editId) : null;
+  if(!barbers().length){ toast(can('*')?'Cadastre um barbeiro em Ajustes antes de marcar horários':'Nenhum barbeiro cadastrado. Fale com o dono.'); return; }
+  if(!DB.services.length){ toast('Cadastre os serviços em Ajustes antes de marcar horários'); return; }
+  const defB = bk ? bk.barber : isBarber(u) ? u.id : (UI.agBarber!=='all' ? UI.agBarber : barbers()[0].id);
+  const defS = bk ? bk.service : DB.services[0].id;
+  const defD = bk ? bk.date : (UI.agDate < TODAY ? TODAY : UI.agDate);
+  const dias = [...Array(14)].map((_,i)=>iso(addDays(new Date(),i))); if(!dias.includes(defD)) dias.unshift(defD);
+  modal({title: bk ? `Remarcar · ${bk.cliente}` : 'Novo horário', body:`
+    <div class="grid2"><label class="f">Cliente<input class="in" id="na-c" placeholder="Nome do cliente" value="${esc(bk?bk.cliente:'')}"></label>
+    <label class="f">WhatsApp<input class="in" id="na-t" inputmode="tel" placeholder="(21) 99999-9999" value="${esc(bk?bk.tel||'':'')}"></label></div>
+    <label class="f">Serviço<select class="in" id="na-s">${DB.services.map(s=>`<option value="${s.id}" ${s.id===defS?'selected':''}>${esc(s.nome)} · ${s.dur} min · ${brl(s.preco)}</option>`).join('')}</select></label>
     <div class="grid2"><label class="f">Barbeiro<select class="in" id="na-b">${barbers().map(b=>`<option value="${b.id}" ${b.id===defB?'selected':''}>${esc(b.nome)}</option>`).join('')}</select></label>
-    <label class="f">Dia<select class="in" id="na-d">${[...Array(7)].map((_,i)=>{ const d = iso(addDays(new Date(),i)); return `<option value="${d}" ${d===UI.agDate?'selected':''}>${dayLabel(d)}</option>`; }).join('')}</select></label></div>
-    <label class="f">Horário livre<select class="in" id="na-h">${slotOpts(UI.agDate,defB,DB.services[0].id)}</select></label>
+    <label class="f">Dia<select class="in" id="na-d">${dias.map(d=>`<option value="${d}" ${d===defD?'selected':''}>${dayLabel(d)}${H.fechado.includes(parse(d).getDay())?' · fechado':''}</option>`).join('')}</select></label></div>
+    <label class="f">Horário livre<select class="in" id="na-h">${slotOptsSel(defD, defB, defS, editId, bk&&bk.date===defD&&bk.barber===defB?bk.time:null)}</select></label>
     <div class="err" id="na-err"></div>`,
-    foot:`<button class="btn" data-x>Voltar</button><button class="btn pri" id="na-ok">Marcar horário</button>`,
+    foot:`<button class="btn" data-x>Voltar</button><button class="btn pri" id="na-ok">${bk?'Salvar novo horário':'Marcar horário'}</button>`,
     onMount:(el,close)=>{
-      const upd = () => { $('#na-h',el).innerHTML = slotOpts($('#na-d',el).value, $('#na-b',el).value, $('#na-s',el).value); };
+      const upd = () => { const d = $('#na-d',el).value, b = $('#na-b',el).value; $('#na-h',el).innerHTML = slotOptsSel(d, b, $('#na-s',el).value, editId, bk&&bk.date===d&&bk.barber===b?bk.time:null); };
       ['#na-s','#na-b','#na-d'].forEach(s=>$(s,el).onchange=upd);
       $('#na-ok',el).onclick=()=>{
         const c = $('#na-c',el).value.trim(), t = $('#na-h',el).value;
         if(!c){ $('#na-err',el).textContent='Escreva o nome do cliente.'; return; }
         if(!t){ $('#na-err',el).textContent='Escolha um horário livre ou mude o dia.'; return; }
         const s = SV($('#na-s',el).value);
-        const b = {id:uid(),date:$('#na-d',el).value,time:t,barber:$('#na-b',el).value,cliente:c,tel:$('#na-t',el).value.trim(),service:s.id,valor:s.preco,status:'agendado',origem:'balcao'};
+        const dados = {date:$('#na-d',el).value, time:t, barber:$('#na-b',el).value, cliente:c, tel:$('#na-t',el).value.trim(), service:s.id, valor:s.preco};
+        if(bk){ const prev = {...bk}; Object.assign(bk, dados); UI.agDate = bk.date; save(); close(); refresh();
+          toast(`Remarcado: ${c}, ${dayLabel(bk.date).toLowerCase()} às ${t}`, ()=>{ Object.assign(bk, prev); save(); refresh(); }); return; }
+        const b = {id:uid(), ...dados, status:'agendado', origem:'balcao'};
         DB.bookings.push(b); UI.agDate = b.date; save(); close(); refresh();
         toast(`Marcado: ${c}, ${dayLabel(b.date).toLowerCase()} às ${t}`, ()=>{ DB.bookings = DB.bookings.filter(x=>x.id!==b.id); save(); refresh(); });
       };
@@ -1092,7 +1357,7 @@ function renderVendas(){
   const status = agora==='lounge' ? `<span class="pill lou">Lounge aberto · vendas contam para o lounge</span>`
     : diaDeLounge(Date.now()) ? `<span class="pill mute">Horário da barbearia · lounge abre às ${loungeCfg().inicio}</span>`
     : `<span class="pill mute">Horário da barbearia · hoje não tem lounge</span>`;
-  const lista = (arr) => arr.length ? `<div class="list">${arr.map(x=>`<div class="li"><span class="time num" style="font-size:16px;width:50px">${hm(x.ts)}</span><div class="grow"><div class="t">${esc(itensTxt(x))}</div><div class="d">${x.booking?`Consumo de ${esc((DB.bookings.find(b=>b.id===x.booking)||{}).cliente||'cliente')} · `:''}${x.pay===null?'cobra no fim do corte':esc(x.pay)} · ${esc(userName(x.user))}</div></div>${x.pedido&&x.pedido.status!=='entregue'?`<span class="pill ${PED[x.pedido.status][1]}">${PED[x.pedido.status][0]}</span>`:''}<span class="qty">${brl(x.total)}</span></div>`).join('')}</div>` : '<div class="empty">Nenhuma venda.</div>';
+  const lista = (arr) => arr.length ? `<div class="list">${arr.map(x=>`<div class="li${dono?' click':''}" ${dono?`data-vd="${x.id}" role="button" tabindex="0"`:''}><span class="time num" style="font-size:16px;width:50px">${hm(x.ts)}</span><div class="grow"><div class="t">${esc(itensTxt(x))}</div><div class="d">${x.booking?`Consumo de ${esc((DB.bookings.find(b=>b.id===x.booking)||{}).cliente||'cliente')} · `:''}${x.pay===null?'cobra no fim do corte':esc(x.pay)} · ${esc(userName(x.user))}</div></div>${x.pedido&&x.pedido.status!=='entregue'?`<span class="pill ${PED[x.pedido.status][1]}">${PED[x.pedido.status][0]}</span>`:''}<span class="qty">${brl(x.total)}</span></div>`).join('')}</div>` : '<div class="empty">Nenhuma venda.</div>';
   v.innerHTML = `
     <div class="head"><div><h1>Vendas</h1><p>${status}</p></div>
       <div class="actions"><button class="btn" id="vd-ped">${ICON.pedidos}Ver pedidos${pedidosAbertos().length?` (${pedidosAbertos().length})`:''}</button><button class="btn pri" id="vd-new">${ICON.plus}Nova venda</button></div></div>
@@ -1105,6 +1370,26 @@ function renderVendas(){
     <p class="note" style="margin:0">Toda venda vira um pedido na tela Pedidos, para quem cuida do bar pegar e preparar. Cada narga vendida desconta ${NARGA.ess} g da essência, ${NARGA.carvao} cubos de carvão e ${NARGA.piteira} piteira do estoque.</p>`;
   $('#vd-new').onclick = () => vendaDialog();
   $('#vd-ped').onclick = () => go('pedidos');
+  v.querySelectorAll('[data-vd]').forEach(r=>r.onclick=()=>vendaDetalhe(r.dataset.vd));
+}
+// Dono pode cancelar uma venda lançada errada: o estoque volta e a venda sai dos resultados
+function vendaDetalhe(id){
+  const x = DB.vendas.find(v=>v.id===id); if(!x) return;
+  const bk = x.booking && DB.bookings.find(b=>b.id===x.booking);
+  modal({title:'Venda', body:`<dl class="kv">
+      <dt>Itens</dt><dd>${esc(itensTxt(x))}</dd><dt>Total</dt><dd>${brl(x.total)}</dd>
+      <dt>Quando</dt><dd>${fmtDT(x.ts)} · ${x.periodo==='lounge'?'lounge':'barbearia'}</dd>
+      <dt>Pagamento</dt><dd>${x.pay===null?'cobra no fim do corte':esc(x.pay)}</dd>
+      <dt>Lançado por</dt><dd>${esc(userName(x.user))}</dd>
+      ${bk?`<dt>Cliente</dt><dd>${esc(bk.cliente)}</dd>`:''}
+      ${x.pedido?`<dt>Pedido</dt><dd>${PED[x.pedido.status][0]}${x.pedido.local?' · '+esc(x.pedido.local):''}</dd>`:''}</dl>`,
+    foot:`<button class="btn danger" id="vd-cancel">Cancelar venda</button><button class="btn" data-x>Fechar</button>`,
+    onMount:(el,close)=>{ $('#vd-cancel',el).onclick = () => { close(); confirmBox('Cancelar esta venda?', `${itensTxt(x)} (${brl(x.total)}) sai dos resultados e os itens voltam para o estoque.`, 'Cancelar venda', ()=>{
+      const ms = [];
+      x.itens.forEach(i=>{ const [t,pid] = i.key.split(':'); if(t==='n'){ ms.push(moveStock(pid, NARGA.ess*i.qtd, 'Venda cancelada'), moveStock('carvao', NARGA.carvao*i.qtd, 'Venda cancelada'), moveStock('piteira', NARGA.piteira*i.qtd, 'Venda cancelada')); } else ms.push(moveStock(pid, i.qtd, 'Venda cancelada')); });
+      const idx = DB.vendas.indexOf(x); DB.vendas.splice(idx,1); save(); refresh();
+      toast('Venda cancelada', ()=>{ DB.vendas.splice(idx,0,x); undoMoves(ms); save(); refresh(); });
+    }); }; }});
 }
 function locaisSugeridos(){
   const cad = DB.bookings.filter(b=>b.date===TODAY && b.status==='atendendo').map(b=>`Cadeira do ${userName(b.barber)} · ${b.cliente}`);
@@ -1183,25 +1468,31 @@ function renderPedidos(){
 }
 
 /* ---------- aviso de pedido novo para quem cuida do bar ---------- */
-const conhecidos = new Set(DB.vendas.filter(v=>v.pedido).map(v=>v.id));
+const conhecidos = new Set([...DB.vendas.filter(v=>v.pedido).map(v=>v.id), ...DB.bookings.map(b=>b.id)]);
 function beep(){
   try{ const c = window._ac || (window._ac = new (window.AudioContext||window.webkitAudioContext)()); [0,.18].forEach(d=>{ const o = c.createOscillator(), g = c.createGain(); o.frequency.value = 880; g.gain.setValueAtTime(.0001,c.currentTime+d); g.gain.exponentialRampToValueAtTime(.25,c.currentTime+d+.02); g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+d+.15); o.connect(g); g.connect(c.destination); o.start(c.currentTime+d); o.stop(c.currentTime+d+.16); }); }catch(e){}
   try{ navigator.vibrate && navigator.vibrate([150,80,150]); }catch(e){}
 }
-function avisarNovos(){
-  const me = currentUser(); if(!me) return;
+function avisarNovos(silencioso){
+  const me = currentUser();
   const novos = DB.vendas.filter(v=>v.pedido && v.pedido.status==='novo' && !conhecidos.has(v.id));
   novos.forEach(v=>conhecidos.add(v.id));
-  if(novos.length && me.pedidos){ beep(); toast(`Pedido novo · ${novos[0].pedido.local}: ${itensTxt(novos[0])}`); }
+  const reservas = DB.bookings.filter(b=>b.origem==='cliente' && b.status==='agendado' && !conhecidos.has(b.id));
+  reservas.forEach(b=>conhecidos.add(b.id));
+  if(silencioso || !me) return;
+  if(novos.length && me.pedidos){ beep(); toast(`Pedido novo · ${novos[0].pedido.local}: ${itensTxt(novos[0])}`); return; }
+  const minhas = reservas.filter(b=>me.papel==='dono' || b.barber===me.id);
+  if(minhas.length){ beep(); toast(`Novo horário marcado pelo cliente · ${minhas[0].cliente}, ${dayLabel(minhas[0].date).toLowerCase()} às ${minhas[0].time}`); }
 }
-// Outra aba ou outro login no mesmo aparelho lançou algo: atualiza a tela na hora
+// Modo demonstração: outra aba no mesmo aparelho lançou algo, atualiza a tela na hora
 function sincronizar(){
-  let raw = null; try{ raw = localStorage.getItem(KEY); }catch(e){ return; }
+  if(oficial()) return;
+  let raw = null; try{ raw = localStorage.getItem(KEY_DEMO); }catch(e){ return; }
   if(!raw || raw===ultimoSalvo) return;
   try{ const d = JSON.parse(raw); if(d && d.ver===4){ DB = d; ultimoSalvo = raw; avisarNovos(); if(!document.querySelector('.modal-bg')) render(); } }catch(e){}
 }
-window.addEventListener('storage', e=>{ if(e.key===KEY) sincronizar(); });
-setInterval(()=>{ sincronizar(); if(UI.route==='pedidos' && currentUser() && !document.querySelector('.modal-bg') && UI.mode==='app') renderPedidos(); }, 15000);
+window.addEventListener('storage', e=>{ if(e.key===KEY_DEMO) sincronizar(); });
+setInterval(()=>{ sincronizar(); if(UI.route==='pedidos' && currentUser() && !document.querySelector('.modal-bg') && UI.mode==='app' && !oficial()) renderPedidos(); }, 15000);
 
 /* =========================================================
    ESTOQUE: uma tela, três setores. Toque no item para entrada, baixa e histórico.
@@ -1217,7 +1508,8 @@ function renderEstoque(){
   const valor = DB.produtos.reduce((a,p)=>a+p.qtd*p.custo,0);
   v.innerHTML = `
     <div class="head"><div><h1>Estoque</h1><p>${plural(DB.produtos.length,'item','itens')}${dono?` · ${brl(valor)} parados a preço de custo`:''} · toque num item para dar entrada ou baixa</p></div>
-      ${dono?`<div class="actions"><button class="btn" id="es-new">${ICON.plus}Novo produto</button></div>`:''}</div>
+      <div class="actions"><button class="btn" id="es-cont">${ICON.check}Contagem</button>${dono?`<button class="btn" id="es-new">${ICON.plus}Novo produto</button>`:''}</div></div>
+    ${oficial() && !DB.movs.length ? `<button type="button" class="alertbar" id="es-cont2">${ICON.estoque}<span><b>Comece pela contagem do estoque.</b> Informe quanto tem de cada item hoje e o app passa a controlar sozinho a partir daí.</span>${ICON.chev}</button>` : ''}
     <div class="toolbar">
       <div class="chips" id="es-s">${[['todos','Todos'],...Object.entries(SETOR)].map(([k,l])=>`<button class="chip ${UI.estSetor===k?'on':''}" data-s="${k}">${l}<small>${cnt(k)}</small></button>`).join('')}
         <button class="chip warnchip ${UI.estAlerta?'on':''}" id="es-a" aria-pressed="${UI.estAlerta}">Repor<small>${low}</small></button></div>
@@ -1237,10 +1529,33 @@ function renderEstoque(){
   const qi = $('#es-q'); qi.oninput = () => { UI.estQ = qi.value; const pos = qi.selectionStart; refresh(); const n = $('#es-q'); n.focus(); n.setSelectionRange(pos,pos); };
   v.querySelectorAll('[data-it]').forEach(r=>r.onclick=()=>itemDialog(r.dataset.it));
   if($('#es-new')) $('#es-new').onclick = () => productDialog(null);
+  $('#es-cont').onclick = () => contagemDialog(UI.estSetor==='todos'?'bar':UI.estSetor);
+  if($('#es-cont2')) $('#es-cont2').onclick = () => contagemDialog('bar');
+}
+// Contagem: digita a quantidade real de cada item; o app grava só as diferenças como ajuste
+function contagemDialog(setor){
+  let st = setor;
+  const corpo = () => `<div class="seg" id="ct-s">${Object.entries(SETOR).map(([k,l])=>`<button type="button" data-v="${k}" class="${st===k?'on':''}">${l}</button>`).join('')}</div>
+    <p class="psub" style="margin:0">Digite quanto tem de cada item agora. Só o que mudar é registrado, com o seu nome.</p>
+    <div class="list" id="ct-l">${DB.produtos.filter(p=>p.setor===st).sort((a,b)=>a.nome.localeCompare(b.nome)).map(p=>`<div class="li"><div class="grow"><div class="t">${esc(p.nome)}</div><div class="d">agora: ${fmtQ(p.qtd)} ${esc(p.unid)}</div></div><input class="in num ct-in" style="width:110px;text-align:right" inputmode="decimal" data-p="${p.id}" value="${fmtQ(p.qtd)}" aria-label="Quantidade de ${esc(p.nome)}"><span class="psub" style="width:48px">${esc(p.unid)}</span></div>`).join('')}</div>`;
+  const pend = {};
+  modal({title:'Contagem do estoque', wide:true, body:`<div id="ct-b" class="stack" style="gap:14px">${corpo()}</div>`,
+    foot:`<button class="btn" data-x>Fechar</button><button class="btn pri" id="ct-ok">Salvar contagem</button>`,
+    onMount:(el,close)=>{
+      const lerAtuais = () => el.querySelectorAll('.ct-in').forEach(i=>{ pend[i.dataset.p] = i.value; });
+      const bind = () => { segBind(el,'#ct-s',x=>{ lerAtuais(); st = x; $('#ct-b',el).innerHTML = corpo(); el.querySelectorAll('.ct-in').forEach(i=>{ if(pend[i.dataset.p]!==undefined) i.value = pend[i.dataset.p]; }); bind(); }); };
+      bind();
+      $('#ct-ok',el).onclick = () => {
+        lerAtuais(); const ms = [];
+        Object.entries(pend).forEach(([id,val])=>{ const p = prod(id); if(!p || String(val).trim()==='') return; const novo = numIn(val); const d = Math.round((novo - p.qtd)*100)/100; if(d) ms.push(moveStock(id, d, 'Contagem do estoque')); });
+        save(); close(); refresh();
+        toast(ms.length ? `Contagem salva · ${plural(ms.length,'item ajustado','itens ajustados')}` : 'Nada mudou na contagem', ms.length ? ()=>{ undoMoves(ms); save(); refresh(); } : null);
+      };
+    }});
 }
 function itemDialog(id){
   const p = prod(id), dono = can('*'); let modo = 'entrada';
-  const mv = DB.movs.filter(m=>m.prod===id).slice(0,6);
+  const mv = DB.movs.filter(m=>m.prod===id).sort((a,b)=>b.ts-a.ts).slice(0,6);
   const motivos = () => modo==='entrada' ? ['Compra de fornecedor','Ajuste de contagem'] : ['Uso nos atendimentos','Perda ou quebra','Ajuste de contagem'];
   modal({title:p.nome, body:`
     <div class="msum"><span class="psub">${SETOR[p.setor]} · mínimo ${fmtQ(p.min)} ${esc(p.unid)}</span><span class="big num">${fmtQ(p.qtd)} ${esc(p.unid)}</span></div>
@@ -1299,28 +1614,61 @@ function productDialog(id){
 /* =========================================================
    AJUSTES (dono): equipe, serviços, horário do lounge, link do cliente
    ========================================================= */
+const linkBase = () => location.origin + location.pathname;
+function copiar(texto, el){
+  const ok = () => toast('Link copiado');
+  try{ navigator.clipboard.writeText(texto).then(ok, ()=>{ if(el){ el.select(); document.execCommand('copy'); ok(); } }); }catch(e){ if(el){ el.select(); try{ document.execCommand('copy'); ok(); }catch(_){} } }
+}
 function renderAjustes(){
-  const v = $('#view'), me = currentUser(), c = loungeCfg();
+  const v = $('#view'), me = currentUser(), c = loungeCfg(), h = cfgHorario(), n = cfgNarga();
+  const linkCli = linkBase() + '#agendar';
+  const linkCon = oficial() ? `${linkBase()}#conectar=${SEGREDO}` : '';
   v.innerHTML = `
-    <div class="head"><div><h1>Ajustes</h1><p>Quem acessa o app, o que a casa vende e quando é lounge.</p></div></div>
+    <div class="head"><div><h1>Ajustes</h1><p>Quem acessa o app, o que a casa vende, horários e celulares conectados.</p></div></div>
     <section class="card"><div class="card-h"><h2>Equipe e acessos</h2><button class="btn sm" id="us-new">${ICON.plus}Novo login</button></div>
-      <p class="psub" style="margin:-4px 0 10px"><b>Dono</b> vê tudo. <b>Funcionário</b> usa Agenda, Vendas e Estoque, sem custos nem resultados da casa.</p>
-      <div class="tbl-wrap flat"><table><thead><tr><th>Nome</th><th>Usuário</th><th>Função</th><th>Acesso</th><th>Pedidos do bar</th><th class="r">Comissão</th></tr></thead><tbody>
+      <p class="psub" style="margin:-4px 0 10px"><b>Dono</b> vê tudo. <b>Funcionário</b> usa Agenda, Pedidos, Vendas e Estoque, sem custos nem resultados da casa.</p>
+      <div class="tbl-wrap flat"><table><thead><tr><th>Nome</th><th>Usuário</th><th>Função</th><th>Acesso</th><th>Agenda</th><th>Pedidos do bar</th><th class="r">Comissão</th></tr></thead><tbody>
       ${DB.users.map(u=>`<tr class="click" data-us="${u.id}" style="${u.ativo?'':'opacity:.5'}"><td><span class="pname">${esc(u.nome)}</span>${u.id===me.id?' <span class="psub">(você)</span>':''}</td><td class="psub">${esc(u.usuario)}</td><td>${esc(u.funcao)}</td>
-        <td><span class="pill ${u.papel==='dono'?'info':'mute'} nodot">${PAPEIS[u.papel]}</span>${u.ativo?'':' <span class="pill bad nodot">Desativado</span>'}</td><td>${u.pedidos?'<span class="pill ok nodot">Recebe</span>':'<span class="psub">—</span>'}</td><td class="r num">${isBarber(u)?u.com+'%':'—'}</td></tr>`).join('')}</tbody></table></div></section>
+        <td><span class="pill ${u.papel==='dono'?'info':'mute'} nodot">${PAPEIS[u.papel]}</span>${u.ativo?'':' <span class="pill bad nodot">Desativado</span>'}</td>
+        <td>${isBarber(u)?'<span class="pill ok nodot">Atende</span>':'<span class="psub">—</span>'}</td>
+        <td>${u.pedidos?'<span class="pill ok nodot">Recebe</span>':'<span class="psub">—</span>'}</td>
+        <td class="r num">${isBarber(u)?u.com+'%':'—'}</td></tr>`).join('')}</tbody></table></div>
+      ${barbers().length?'':'<p class="note" style="margin:10px 0 0">Nenhum barbeiro cadastrado ainda. Crie um login e marque "Atende clientes na agenda".</p>'}</section>
     <div class="cols even">
       <section class="card"><div class="card-h"><h2>Serviços e preços</h2><button class="btn sm" id="sv-new">${ICON.plus}Novo serviço</button></div>
-        <div class="list">${DB.services.map(s=>`<button type="button" class="li" data-sv="${s.id}"><div class="grow"><div class="t">${esc(s.nome)}</div><div class="d">${s.dur} min</div></div><span class="qty">${brl(s.preco)}</span></button>`).join('')}</div>
+        <div class="list">${DB.services.map(s=>`<button type="button" class="li" data-sv="${s.id}"><div class="grow"><div class="t">${esc(s.nome)}</div><div class="d">${s.dur} min</div></div><span class="qty">${brl(s.preco)}</span></button>`).join('') || '<div class="empty">Nenhum serviço. Crie o primeiro.</div>'}</div>
         <p class="foot" style="margin:10px 0 0">É esta lista que o cliente vê na hora de agendar.</p></section>
       <div class="stack">
+        <section class="card"><div class="card-h"><h2>Horário de funcionamento</h2></div>
+          <p class="psub" style="margin:-4px 0 12px">Define os horários livres na agenda e na página do cliente.</p>
+          <div class="grid2"><label class="f">Abre às<input class="in num" type="time" id="hf-a" value="${h.abre}"></label><label class="f">Fecha às<input class="in num" type="time" id="hf-f" value="${h.fecha}"></label></div>
+          <span class="psub" style="font-weight:600;display:block;margin:12px 0 8px">Dias fechado</span>
+          <div class="chips" id="hf-d">${[1,2,3,4,5,6,0].map(i=>`<button type="button" class="chip ${h.fechado.includes(i)?'on':''}" data-d="${i}" aria-pressed="${h.fechado.includes(i)}">${DIAS[i]}</button>`).join('')}</div>
+          <div style="margin-top:12px"><button class="btn pri" id="hf-ok">Salvar horário</button></div></section>
         <section class="card"><div class="card-h"><h2>Horário do lounge</h2><span class="pill lou">${regraLounge()}</span></div>
           <p class="psub" style="margin:-4px 0 12px">Vendas nesse horário contam como lounge. Fora dele, contam como barbearia. Depois da meia-noite, até o horário de fim, ainda é a noite anterior.</p>
           <div class="chips" id="lg-d">${[5,6,0,1,2,3,4].map(i=>`<button type="button" class="chip ${c.dias.includes(i)?'on':''}" data-d="${i}" aria-pressed="${c.dias.includes(i)}">${DIAS[i]}</button>`).join('')}</div>
           <div class="grid2" style="margin-top:12px"><label class="f">Começa às<input class="in num" type="time" id="lg-i" value="${c.inicio}"></label><label class="f">Termina às<input class="in num" type="time" id="lg-f" value="${c.fim}"></label></div>
-          <div style="margin-top:12px"><button class="btn pri" id="lg-ok">Salvar horário</button></div></section>
+          <div style="margin-top:12px"><button class="btn pri" id="lg-ok">Salvar lounge</button></div></section>
+      </div>
+    </div>
+    <div class="cols even">
+      <section class="card"><div class="card-h"><h2>Narga</h2></div>
+        <p class="psub" style="margin:-4px 0 12px">Preço da sessão e o que cada sessão tira do estoque.</p>
+        <div class="grid2"><label class="f">Preço da sessão (R$)<input class="in num" id="ng-p" inputmode="decimal" value="${String(n.preco).replace('.',',')}"></label><label class="f">Essência por sessão (g)<input class="in num" id="ng-e" inputmode="decimal" value="${String(n.ess).replace('.',',')}"></label></div>
+        <div class="grid2" style="margin-top:12px"><label class="f">Carvão por sessão (cubos)<input class="in num" id="ng-c" inputmode="numeric" value="${n.carvao}"></label><label class="f">Piteiras por sessão<input class="in num" id="ng-t" inputmode="numeric" value="${n.piteira}"></label></div>
+        <div style="margin-top:12px"><button class="btn pri" id="ng-ok">Salvar narga</button></div></section>
+      <div class="stack">
         <section class="card"><div class="card-h"><h2>Agendamento do cliente</h2></div>
-          <p class="psub" style="margin:-4px 0 12px">Página onde o cliente escolhe serviço, barbeiro e horário livre. Coloque o link na bio do Instagram e na resposta automática do WhatsApp.</p>
-          <button class="btn" id="lk-open">${ICON.link}Ver como o cliente vê</button></section>
+          <p class="psub" style="margin:-4px 0 12px">O cliente escolhe serviço, barbeiro e horário livre, e o horário cai na agenda. Coloque este link na bio do Instagram e na resposta automática do WhatsApp.</p>
+          <input class="in num" id="lk-cli" readonly value="${esc(linkCli)}">
+          <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn" id="lk-copy">Copiar link</button><button class="btn" id="lk-open">${ICON.link}Ver como o cliente vê</button></div></section>
+        <section class="card"><div class="card-h"><h2>Celulares da casa</h2>${oficial()?'<span class="pill ok nodot">Conectado</span>':'<span class="pill mute nodot">Demonstração</span>'}</div>
+          ${oficial()?`<p class="psub" style="margin:-4px 0 12px">Para usar o app em outro celular, mande este link para a pessoa. Ela abre uma vez, o celular fica conectado à casa e depois ela entra com o próprio usuário e senha. Mande só para a equipe.</p>
+          <input class="in num" id="lk-con" readonly value="${esc(linkCon)}">
+          <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn" id="con-copy">Copiar link</button><a class="btn" id="con-wpp" href="https://wa.me/?text=${encodeURIComponent('Link do app da Barba & Narga (abra uma vez para conectar seu celular): '+linkCon)}" target="_blank" rel="noopener">Enviar pelo WhatsApp</a></div>
+          <button class="btn ghost danger" id="con-sair" style="margin-top:10px">Desconectar este aparelho</button>`
+          :`<p class="psub" style="margin:-4px 0 0">Este aparelho está no modo demonstração: os dados são de exemplo, ficam só aqui e voltam ao início todo dia. Para usar com os dados da casa, abra o link de conexão que o dono compartilha.</p>`}</section>
       </div>
     </div>`;
   $('#us-new').onclick = () => userDialog(null);
@@ -1328,8 +1676,12 @@ function renderAjustes(){
   $('#sv-new').onclick = () => svcDialog(null);
   v.querySelectorAll('[data-sv]').forEach(b=>b.onclick=()=>svcDialog(b.dataset.sv));
   $('#lk-open').onclick = openCliente;
-  const dias = new Set(c.dias);
-  v.querySelectorAll('#lg-d [data-d]').forEach(b=>b.onclick=()=>{ const i = +b.dataset.d; dias.has(i)?dias.delete(i):dias.add(i); b.classList.toggle('on',dias.has(i)); b.setAttribute('aria-pressed',String(dias.has(i))); });
+  $('#lk-copy').onclick = () => { copiar(linkCli, $('#lk-cli')); if(oficial()) marcarPasso('link'); };
+  if($('#con-copy')) $('#con-copy').onclick = () => { copiar(linkCon, $('#lk-con')); marcarPasso('celulares'); };
+  if($('#con-wpp')) $('#con-wpp').addEventListener('click', ()=>marcarPasso('celulares'));
+  if($('#con-sair')) $('#con-sair').onclick = () => confirmBox('Desconectar este aparelho?', 'O app sai da sua conta neste celular e volta para a demonstração. Os dados da casa continuam salvos. Para voltar, abra o link de conexão.', 'Desconectar', ()=>{ try{ localStorage.removeItem(KEY_SEG); localStorage.removeItem(KEY_OF); localStorage.removeItem(KEY_SESS); }catch(e){} location.replace(linkBase()); });
+  const toggles = sel => { const set = new Set(); v.querySelectorAll(sel+' [data-d]').forEach(b=>{ if(b.classList.contains('on')) set.add(+b.dataset.d); b.onclick=()=>{ const i = +b.dataset.d; set.has(i)?set.delete(i):set.add(i); b.classList.toggle('on',set.has(i)); b.setAttribute('aria-pressed',String(set.has(i))); }; }); return set; };
+  const dias = toggles('#lg-d'), fech = toggles('#hf-d');
   $('#lg-ok').onclick = () => {
     const ini = $('#lg-i').value, fim = $('#lg-f').value;
     if(!dias.size){ toast('Escolha pelo menos um dia de lounge'); return; }
@@ -1338,30 +1690,51 @@ function renderAjustes(){
     DB.cfg.lounge = {dias:[...dias], inicio:ini, fim};
     save(); refresh(); toast(`Lounge: ${regraLounge()}`, ()=>{ DB.cfg.lounge = prev; save(); refresh(); });
   };
+  $('#hf-ok').onclick = () => {
+    const a = $('#hf-a').value, f = $('#hf-f').value;
+    if(!a || !f || toMin(f) <= toMin(a)){ toast('O horário de fechar precisa ser depois do de abrir'); return; }
+    if(fech.size >= 7){ toast('Deixe pelo menos um dia aberto'); return; }
+    const prev = DB.cfg.horario ? {...DB.cfg.horario} : null;
+    DB.cfg.horario = {abre:a, fecha:f, fechado:[...fech]};
+    save(); refresh(); toast('Horário de funcionamento salvo', ()=>{ if(prev) DB.cfg.horario = prev; else delete DB.cfg.horario; save(); refresh(); });
+  };
+  $('#ng-ok').onclick = () => {
+    const d = {preco:numIn($('#ng-p').value), ess:numIn($('#ng-e').value), carvao:Math.round(numIn($('#ng-c').value)), piteira:Math.round(numIn($('#ng-t').value))};
+    if(d.preco<=0 || d.ess<=0){ toast('Preço e essência precisam ser maiores que zero'); return; }
+    const prev = DB.cfg.narga ? {...DB.cfg.narga} : null;
+    DB.cfg.narga = d; save(); refresh(); toast('Narga salva', ()=>{ if(prev) DB.cfg.narga = prev; else delete DB.cfg.narga; save(); refresh(); });
+  };
 }
 function userDialog(id){
   const me = currentUser(), self = id===me.id;
-  const u = id ? DB.users.find(x=>x.id===id) : {nome:'',usuario:'',senha:'',papel:'funcionario',funcao:'Barbeiro',com:50,ativo:true};
+  const novo = !id;
+  const u = id ? DB.users.find(x=>x.id===id) : {id:uid(), nome:'', usuario:'', papel:'funcionario', funcao:'Barbeiro', com:50, ativo:true, barbeiro:true, pedidos:false};
   let papel = u.papel;
-  modal({title: id?'Editar login':'Novo login', body:`
-    <div class="grid2"><label class="f">Nome<input class="in" id="u-n" value="${esc(u.nome)}"></label><label class="f">Função<input class="in" id="u-f" value="${esc(u.funcao)}" placeholder="Barbeiro, Lounge e bar"></label></div>
-    <div class="grid2"><label class="f">Usuário<input class="in" id="u-u" autocapitalize="none" value="${esc(u.usuario)}"></label><label class="f">Senha<input class="in" id="u-s" value="${esc(u.senha)}"></label></div>
+  modal({title: novo?'Novo login':'Editar login', body:`
+    <div class="grid2"><label class="f">Nome<input class="in" id="u-n" value="${esc(u.nome)}"></label><label class="f">Função<input class="in" id="u-f" value="${esc(u.funcao)}" placeholder="Barbeiro, Lounge e bar, Gerente"></label></div>
+    <div class="grid2"><label class="f">Usuário para entrar<input class="in" id="u-u" autocapitalize="none" value="${esc(u.usuario)}"></label>
+      <label class="f">${novo?'Senha':'Nova senha'}<input class="in" id="u-s" type="password" autocomplete="new-password" placeholder="${novo?'mínimo 6 caracteres':'deixe em branco para manter'}"></label></div>
     <div class="f"><span class="psub" style="font-weight:600">Tipo de acesso</span><div class="seg" id="u-p"><button type="button" data-v="funcionario" class="${papel==='funcionario'?'on':''}" ${self?'disabled':''}>Funcionário</button><button type="button" data-v="dono" class="${papel==='dono'?'on':''}">Dono</button></div>
       ${self?'<span class="note">Você não pode tirar o seu próprio acesso de dono.</span>':''}</div>
-    <label class="f">Comissão sobre serviços (%)<input class="in num" id="u-c" inputmode="numeric" value="${u.com}"></label>
+    <label class="check"><input type="checkbox" id="u-bb" ${isBarber(u)?'checked':''}> Atende clientes na agenda (aparece como barbeiro)</label>
+    <label class="f" id="u-cw">Comissão sobre serviços (%)<input class="in num" id="u-c" inputmode="numeric" value="${u.com||0}"></label>
     <label class="check"><input type="checkbox" id="u-ped" ${u.pedidos?'checked':''}> Recebe os pedidos do bar (abre na fila e avisa quando chega pedido)</label>
-    ${id&&!self?`<label class="check"><input type="checkbox" id="u-a" ${u.ativo?'checked':''}> Acesso ativo</label>`:''}
+    ${!novo&&!self?`<label class="check"><input type="checkbox" id="u-a" ${u.ativo?'checked':''}> Acesso ativo</label>`:''}
     <div class="err" id="u-err"></div>`,
     foot:`<button class="btn" data-x>Voltar</button><button class="btn pri" id="u-ok">Salvar</button>`,
     onMount:(el,close)=>{
       segBind(el,'#u-p',x=>papel=x);
-      $('#u-ok',el).onclick=()=>{
-        const d = {nome:$('#u-n',el).value.trim(), funcao:$('#u-f',el).value.trim()||'Funcionário', usuario:$('#u-u',el).value.trim().toLowerCase(), senha:$('#u-s',el).value, com:Math.round(numIn($('#u-c',el).value)), papel, pedidos:$('#u-ped',el).checked};
+      const cw = () => { $('#u-cw',el).hidden = !$('#u-bb',el).checked; }; $('#u-bb',el).onchange = cw; cw();
+      $('#u-ok',el).onclick=async ()=>{
+        const senha = $('#u-s',el).value;
+        const d = {nome:$('#u-n',el).value.trim(), funcao:$('#u-f',el).value.trim()||'Funcionário', usuario:$('#u-u',el).value.trim().toLowerCase(), com:Math.round(numIn($('#u-c',el).value)), papel, pedidos:$('#u-ped',el).checked, barbeiro:$('#u-bb',el).checked};
         if(!d.nome || !d.usuario){ $('#u-err',el).textContent='Preencha nome e usuário.'; return; }
-        if(d.senha.length<4){ $('#u-err',el).textContent='A senha precisa de pelo menos 4 caracteres.'; return; }
-        if(DB.users.some(x=>x.usuario===d.usuario && x.id!==id)){ $('#u-err',el).textContent='Esse usuário já existe. Escolha outro.'; return; }
-        if(id){ Object.assign(u,d); if($('#u-a',el)) u.ativo = $('#u-a',el).checked; } else DB.users.push({id:uid(), ativo:true, ...d});
-        save(); close(); refresh(); toast('Login salvo');
+        if(!/^[a-z0-9._-]{3,30}$/.test(d.usuario)){ $('#u-err',el).textContent='Usuário com 3 a 30 letras ou números, sem espaço.'; return; }
+        if(novo || senha){ if(senha.length < (oficial()?6:4)){ $('#u-err',el).textContent=`A senha precisa de pelo menos ${oficial()?6:4} caracteres.`; return; } }
+        if(DB.users.some(x=>x.usuario===d.usuario && x.id!==u.id)){ $('#u-err',el).textContent='Esse usuário já existe. Escolha outro.'; return; }
+        if(senha){ if(oficial()){ d.hash = await hashSenha(u.id, senha); delete u.senha; } else d.senha = senha; }
+        if(novo) DB.users.push({...u, ...d}); else { Object.assign(u,d); if($('#u-a',el)) u.ativo = $('#u-a',el).checked; }
+        save(); close(); refresh(); toast(novo?`Login de ${d.nome} criado`:'Login salvo');
       };
     }});
 }
@@ -1382,41 +1755,73 @@ function svcDialog(id){
    PÁGINA DO CLIENTE: serviço → barbeiro → horário → dados
    ========================================================= */
 let CLI;
-function resetCli(){ CLI = {step:0, service:null, barber:'any', date:TODAY, time:null, nome:'', tel:'', done:null}; }
+// Página pública (celular do cliente): fala direto com a nuvem e só vê horários livres.
+// No celular da equipe (ou na demonstração) usa os dados do próprio app.
+let PUB = null;
+function resetCli(){ CLI = {step:0, service:null, barber:'any', date:null, time:null, nome:'', tel:'', done:null, publico:temNuvem() && !oficial(), enviando:false}; }
 resetCli();
+const cliHoje = () => (CLI.publico && PUB && PUB.agora) ? PUB.agora.slice(0,10) : TODAY;
+const cliAgoraMin = () => { if(CLI.publico && PUB && PUB.agora) return toMin(PUB.agora.slice(11,16)); const n = new Date(); return n.getHours()*60+n.getMinutes(); };
+const cliServices = () => CLI.publico ? ((PUB && PUB.services) || []) : DB.services;
+const cliBarbers = () => CLI.publico ? ((PUB && PUB.barbeiros) || []) : barbers();
+const cliSV = id => cliServices().find(s=>s.id===id) || {nome:'Serviço', preco:0, dur:30};
+const cliNome = id => (cliBarbers().find(b=>b.id===id)||{}).nome || '—';
+function cliFechado(date){
+  const h = CLI.publico ? {...HORARIO_PADRAO, ...((PUB && PUB.horario)||{})} : H;
+  return (h.fechado||[]).includes(parse(date).getDay());
+}
+function cliSlots(date, barber, dur){
+  if(!CLI.publico) return freeSlots(date, barber, dur);
+  const h = {...HORARIO_PADRAO, ...((PUB && PUB.horario)||{})};
+  if((h.fechado||[]).includes(parse(date).getDay())) return [];
+  const busy = ((PUB && PUB.ocupados)||[]).filter(o=>o.date===date && o.barber===barber).map(o=>[toMin(o.time), toMin(o.time)+(o.dur||30)]);
+  const hoje = cliHoje(), agora = cliAgoraMin(), out = [];
+  for(let t=toMin(h.abre); t+dur<=toMin(h.fecha); t+=30) out.push({t:toT(t), ok: !busy.some(([a,b])=>t<b && t+dur>a) && !(date===hoje && t<agora)});
+  return out;
+}
+async function carregarPub(){
+  try{ PUB = await rpc('agenda_publica', {p_casa:NUVEM.casa}); PUB.erro = null; }
+  catch(e){ PUB = {...(PUB||{}), erro:e}; }
+  drawCli();
+}
 function openCliente(){ resetCli(); UI.mode='cliente'; try{ history.replaceState(null,'','#agendar'); }catch(e){} render(); window.scrollTo(0,0); }
-function closeCliente(){ UI.mode='app'; try{ history.replaceState(null,'','#'+(UI.route||'')); }catch(e){} render(); window.scrollTo(0,0); }
+function closeCliente(){ UI.mode='app'; try{ history.replaceState(null,'',location.pathname+(UI.route?'#'+UI.route:'')); }catch(e){} render(); window.scrollTo(0,0); }
 function clientePageHTML(){
   return `<div class="cli-page"><div class="cli-wrap"><div class="cli-top"><img src="${LOGO}" alt="Barba &amp; Narga · Club Secreto"><span class="label">Agende seu horário</span></div><div id="cli"></div>
-    <button class="backlink" id="cli-exit" style="align-self:center">${currentUser()?'Voltar ao app da equipe':'Área da equipe'}</button></div></div>`;
+    ${CLI.publico && !currentUser() ? '' : `<button class="backlink" id="cli-exit" style="align-self:center">${currentUser()?'Voltar ao app da equipe':'Área da equipe'}</button>`}</div></div>`;
 }
 function drawCli(){
   const el = $('#cli'); if(!el) return;
   const c = CLI;
   if($('#cli-exit')) $('#cli-exit').onclick = closeCliente;
+  if(c.publico && !PUB){ el.innerHTML = `<div class="cli" style="align-items:center"><div class="spin"></div><p class="psub">Carregando os horários…</p></div>`; carregarPub(); return; }
+  if(c.publico && PUB.erro && !PUB.services){ el.innerHTML = `<div class="cli"><h2>Sem conexão</h2><p class="psub" style="margin:0">Não foi possível carregar os horários. Confira a internet e tente de novo.</p><button class="btn pri block" id="cl-retry">Tentar de novo</button></div>`; $('#cl-retry').onclick = ()=>{ PUB = null; drawCli(); }; return; }
+  if(!c.date){ c.date = cliHoje(); for(let i=0;i<7 && cliFechado(c.date);i++) c.date = iso(addDays(parse(cliHoje()),i+1)); }
   if(c.done){ const b = c.done;
     el.innerHTML = `<div class="cli"><span class="label">Tudo certo</span><h2>Horário confirmado</h2>
-      <dl class="kv"><dt>Serviço</dt><dd>${esc(SV(b.service).nome)}</dd><dt>Barbeiro</dt><dd>${esc(userName(b.barber))}</dd><dt>Quando</dt><dd>${dayLabel(b.date)} às ${b.time}</dd><dt>Valor</dt><dd>${brl(b.valor)}</dd><dt>Nome</dt><dd>${esc(b.cliente)}</dd></dl>
-      <p class="psub" style="margin:0">Chegue 5 minutos antes e aproveite o lounge enquanto espera.</p>
+      <dl class="kv"><dt>Serviço</dt><dd>${esc(cliSV(b.service).nome)}</dd><dt>Barbeiro</dt><dd>${esc(cliNome(b.barber))}</dd><dt>Quando</dt><dd>${dayLabel(b.date)} às ${b.time}</dd><dt>Valor</dt><dd>${brl(b.valor)}</dd><dt>Nome</dt><dd>${esc(b.cliente)}</dd></dl>
+      <p class="psub" style="margin:0">Chegue 5 minutos antes e aproveite o lounge enquanto espera. Se precisar remarcar, chame a gente no WhatsApp.</p>
       <button class="btn pri block" id="cl-again">Agendar outro horário</button></div>`;
-    $('#cl-again').onclick = ()=>{ resetCli(); drawCli(); }; return; }
+    $('#cl-again').onclick = ()=>{ resetCli(); if(PUB) PUB = null; drawCli(); }; return; }
   const steps = `<div class="steps">${[0,1,2,3].map(i=>`<i class="${i<=c.step?'on':''}"></i>`).join('')}</div>`;
   const back = c.step>0 ? `<button class="backlink" id="cl-back">← Voltar</button>` : '';
   let b = '';
-  if(c.step===0) b = `<h2>Qual serviço?</h2><div class="stack" style="gap:8px">${DB.services.map(s=>`<button class="svc" data-s="${s.id}"><div class="g"><b>${esc(s.nome)}</b><span>${s.dur} min</span></div><span class="pr num">${brl(s.preco)}</span></button>`).join('')}</div>`;
-  else if(c.step===1) b = `<h2>Com quem?</h2><div class="stack" style="gap:8px"><button class="svc" data-b="any"><span class="avatar">★</span><div class="g"><b>Primeiro disponível</b><span>Mostra todos os horários livres</span></div></button>${barbers().map(u=>`<button class="svc" data-b="${u.id}"><span class="avatar">${initial(u.nome)}</span><div class="g"><b>${esc(u.nome)}</b><span>Barbeiro</span></div></button>`).join('')}</div>`;
+  if(!cliServices().length || !cliBarbers().length) b = `<h2>Agenda indisponível</h2><p class="psub" style="margin:0">A agenda online ainda não foi aberta. Chame a gente no WhatsApp para marcar.</p>`;
+  else if(c.step===0) b = `<h2>Qual serviço?</h2><div class="stack" style="gap:8px">${cliServices().map(s=>`<button class="svc" data-s="${s.id}"><div class="g"><b>${esc(s.nome)}</b><span>${s.dur} min</span></div><span class="pr num">${brl(s.preco)}</span></button>`).join('')}</div>`;
+  else if(c.step===1) b = `<h2>Com quem?</h2><div class="stack" style="gap:8px"><button class="svc" data-b="any"><span class="avatar">★</span><div class="g"><b>Primeiro disponível</b><span>Mostra todos os horários livres</span></div></button>${cliBarbers().map(u=>`<button class="svc" data-b="${u.id}"><span class="avatar">${initial(u.nome)}</span><div class="g"><b>${esc(u.nome)}</b><span>Barbeiro</span></div></button>`).join('')}</div>`;
   else if(c.step===2){
-    const dur = SV(c.service).dur, pool = c.barber==='any' ? barbers().map(u=>u.id) : [c.barber];
-    const by = pool.map(id=>freeSlots(c.date,id,dur)); const sl = by[0].map((s,i)=>({t:s.t, ok:by.some(a=>a[i].ok)}));
-    b = `<h2>Quando?</h2><div class="days">${[...Array(7)].map((_,i)=>{ const d = iso(addDays(new Date(),i)), x = parse(d); return `<button class="day ${d===c.date?'on':''}" data-d="${d}"><span>${d===TODAY?'hoje':DOW[x.getDay()]}</span><b class="num">${x.getDate()}</b></button>`; }).join('')}</div>
-      ${sl.some(s=>s.ok)?`<div class="slots">${sl.map(s=>`<button class="slot num ${c.time===s.t?'on':''}" data-t="${s.t}" ${s.ok?'':'disabled'}>${s.t}</button>`).join('')}</div>`:'<div class="empty">Sem horário livre neste dia. Escolha outra data.</div>'}
+    const dur = cliSV(c.service).dur, pool = c.barber==='any' ? cliBarbers().map(u=>u.id) : [c.barber];
+    const by = pool.map(id=>cliSlots(c.date,id,dur)); const sl = (by[0]||[]).map((s,i)=>({t:s.t, ok:by.some(a=>a[i] && a[i].ok)}));
+    const h0 = parse(cliHoje());
+    b = `<h2>Quando?</h2><div class="days">${[...Array(7)].map((_,i)=>{ const d = iso(addDays(h0,i)), x = parse(d); return `<button class="day ${d===c.date?'on':''}" data-d="${d}" ${cliFechado(d)?'disabled':''}><span>${d===cliHoje()?'hoje':DOW[x.getDay()]}</span><b class="num">${x.getDate()}</b></button>`; }).join('')}</div>
+      ${sl.some(s=>s.ok)?`<div class="slots">${sl.map(s=>`<button class="slot num ${c.time===s.t?'on':''}" data-t="${s.t}" ${s.ok?'':'disabled'}>${s.t}</button>`).join('')}</div>`:`<div class="empty">${sl.length?'Sem horário livre neste dia. Escolha outra data.':'Fechado neste dia. Escolha outra data.'}</div>`}
       <button class="btn pri block" id="cl-next" ${c.time?'':'disabled'}>Continuar</button>`;
   } else b = `<h2>Seus dados</h2>
-      <div class="msum"><div><b>${esc(SV(c.service).nome)}</b><div class="psub">${dayLabel(c.date)} às ${c.time} · ${c.barber==='any'?'primeiro disponível':esc(userName(c.barber))}</div></div><span class="big num">${brl(SV(c.service).preco)}</span></div>
+      <div class="msum"><div><b>${esc(cliSV(c.service).nome)}</b><div class="psub">${dayLabel(c.date)} às ${c.time} · ${c.barber==='any'?'primeiro disponível':esc(cliNome(c.barber))}</div></div><span class="big num">${brl(cliSV(c.service).preco)}</span></div>
       <label class="f">Nome<input class="in" id="cl-n" autocomplete="name" value="${esc(c.nome)}" placeholder="Como te chamamos?"></label>
       <label class="f">WhatsApp<input class="in" id="cl-t" inputmode="tel" autocomplete="tel" value="${esc(c.tel)}" placeholder="(21) 99999-9999"></label>
       <div class="err" id="cl-err"></div>
-      <button class="btn pri block" id="cl-ok">Confirmar agendamento</button>`;
+      <button class="btn pri block" id="cl-ok" ${c.enviando?'disabled':''}>${c.enviando?'Confirmando…':'Confirmar agendamento'}</button>`;
   el.innerHTML = `<div class="cli">${steps}${back}${b}</div>`;
   if($('#cl-back')) $('#cl-back').onclick = ()=>{ c.step--; drawCli(); };
   el.querySelectorAll('[data-s]').forEach(x=>x.onclick=()=>{ c.service=x.dataset.s; c.step=1; drawCli(); });
@@ -1424,14 +1829,26 @@ function drawCli(){
   el.querySelectorAll('[data-d]').forEach(x=>x.onclick=()=>{ c.date=x.dataset.d; c.time=null; drawCli(); });
   el.querySelectorAll('[data-t]').forEach(x=>x.onclick=()=>{ c.time=x.dataset.t; drawCli(); });
   if($('#cl-next')) $('#cl-next').onclick = ()=>{ c.step=3; drawCli(); };
-  if($('#cl-ok')) $('#cl-ok').onclick = ()=>{
+  if($('#cl-ok')) $('#cl-ok').onclick = async ()=>{
     c.nome = $('#cl-n').value.trim(); c.tel = $('#cl-t').value.trim();
     if(!c.nome){ $('#cl-err').textContent='Escreva o seu nome.'; return; }
     if(c.tel.replace(/\D/g,'').length<10){ $('#cl-err').textContent='Informe o WhatsApp com DDD.'; return; }
-    const sv = SV(c.service); let bb = c.barber;
-    if(bb==='any'){ const i = freeSlots(c.date,'-',sv.dur).findIndex(s=>s.t===c.time); bb = (barbers().find(u=>freeSlots(c.date,u.id,sv.dur)[i].ok) || barbers()[0]).id; }
+    const sv = cliSV(c.service); let bb = c.barber;
+    if(bb==='any'){ const livre = cliBarbers().find(u=>{ const s = cliSlots(c.date,u.id,sv.dur).find(x=>x.t===c.time); return s && s.ok; }); if(!livre){ $('#cl-err').textContent='Esse horário acabou de ser ocupado. Escolha outro.'; c.time = null; c.step = 2; setTimeout(drawCli, 1200); return; } bb = livre.id; }
     const bk = {id:uid(),date:c.date,time:c.time,barber:bb,cliente:c.nome,tel:c.tel,service:sv.id,valor:sv.preco,status:'agendado',origem:'cliente'};
-    DB.bookings.push(bk); save(); c.done = bk; drawCli();
+    if(!c.publico){ DB.bookings.push(bk); save(); c.done = bk; drawCli(); return; }
+    c.enviando = true; drawCli();
+    try{
+      const r = await rpc('agendar', {p_casa:NUVEM.casa, p_reserva:bk});
+      bk.valor = (r && r.valor!=null) ? +r.valor : bk.valor; c.done = bk;
+    }catch(e){
+      const m = String(e.message||'');
+      c.enviando = false; PUB = null;
+      const msg = /ocupado/.test(m) ? 'Esse horário acabou de ser ocupado. Escolha outro.' : /passou|fora|fechado|periodo/.test(m) ? 'Esse horário não está mais disponível. Escolha outro.' : /dados/.test(m) ? 'Confira seu nome e WhatsApp.' : 'Não foi possível confirmar agora. Confira a internet e tente de novo.';
+      if(/ocupado|passou|fora|fechado|periodo/.test(m)){ c.time = null; c.step = 2; }
+      await carregarPub(); const er = $('#cl-err') || (()=>{ const d = document.createElement('div'); d.className='err'; $('#cli .cli').appendChild(d); return d; })(); er.textContent = msg; return;
+    }
+    c.enviando = false; drawCli();
   };
 }
 let _rz; window.addEventListener('resize', ()=>{ clearTimeout(_rz); _rz = setTimeout(()=>{ const el = $('#ch'); if(el) drawChart(el, datasDo(UI.rng)); },150); });
