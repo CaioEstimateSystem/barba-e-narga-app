@@ -9,11 +9,13 @@ O app tem dois modos:
 - **Oficial:** o celular aberto pelo link de conexão (`#conectar=<código da casa>`) usa o banco compartilhado. Todos os celulares conectados veem a mesma agenda, pedidos, vendas e estoque, com atualização a cada poucos segundos e fila offline.
 
 ## Acessos de demonstração (só no modo demonstração)
-| Perfil | Usuário | Senha |
-|---|---|---|
-| Dono (acesso total) | roberto | barba2026 |
-| Barbeiro (funcionário) | lucas | equipe2026 |
-| Lounge e bar (funcionário) | matheus | equipe2026 |
+| Pessoa | Acesso | Usuário | Senha |
+|---|---|---|---|
+| Caio | Dono (tudo) | caio | barba2026 |
+| Prado | Dono (tudo) | prado | barba2026 |
+| Kaian | Dono (tudo) | kaian | barba2026 |
+| Fernando | Dono (tudo) | fernando | barba2026 |
+| Pedro | Barbeiro (funcionário) | pedro | equipe2026 |
 
 ## O que tem (6 telas)
 - **Resultados** (só dono): quanto entrou hoje, em 7 ou 30 dias, separado entre barbearia (serviços + consumo) e lounge; barbeiros e comissões; cada noite de lounge com tudo o que foi vendido.

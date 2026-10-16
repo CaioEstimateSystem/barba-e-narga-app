@@ -443,7 +443,7 @@ tr.click{cursor:pointer}
    Estrutura: DB (dados) → PERMS (papéis) → ROUTES (telas)
    ========================================================= */
 const LOGO = "__LOGO__";
-const KEY = 'barbaenarga.app.v5';
+const KEY = 'barbaenarga.app.v6';
 const $ = (s, el=document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const brl = n => (n||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
@@ -566,11 +566,11 @@ function seed(){
   const R = rng(2017), pick = a => a[Math.floor(R()*a.length)];
   const {services, produtos} = catalogo();
   const users = [
-    {id:'u1',nome:'Roberto',usuario:'roberto',senha:'barba2026',papel:'dono',funcao:'Sócio-proprietário',com:0,ativo:true},
-    {id:'u2',nome:'Lucas',usuario:'lucas',senha:'equipe2026',papel:'funcionario',funcao:'Barbeiro',com:50,ativo:true},
-    {id:'u3',nome:'Diego',usuario:'diego',senha:'equipe2026',papel:'funcionario',funcao:'Barbeiro',com:50,ativo:true},
-    {id:'u4',nome:'Rafa',usuario:'rafa',senha:'equipe2026',papel:'funcionario',funcao:'Barbeiro',com:45,ativo:true},
-    {id:'u5',nome:'Matheus',usuario:'matheus',senha:'equipe2026',papel:'funcionario',funcao:'Lounge e bar',com:0,ativo:true,pedidos:true},
+    {id:'u1',nome:'Caio',usuario:'caio',senha:'barba2026',papel:'dono',funcao:'Sócio',com:0,ativo:true},
+    {id:'u2',nome:'Pedro',usuario:'pedro',senha:'equipe2026',papel:'funcionario',funcao:'Barbeiro',barbeiro:true,com:50,ativo:true},
+    {id:'u3',nome:'Prado',usuario:'prado',senha:'barba2026',papel:'dono',funcao:'Sócio',com:0,ativo:true},
+    {id:'u4',nome:'Kaian',usuario:'kaian',senha:'barba2026',papel:'dono',funcao:'Sócio',com:0,ativo:true},
+    {id:'u5',nome:'Fernando',usuario:'fernando',senha:'barba2026',papel:'dono',funcao:'Sócio',com:0,ativo:true},
   ];
   const custoNarga = e => e.custo*NARGA.ess + .45*NARGA.carvao + .2*NARGA.piteira;
   const nargaItem = e => ({key:'n:'+e.id, label:'Narga · '+e.ess, qtd:1, preco:NARGA.preco, custo:custoNarga(e)});
@@ -586,7 +586,7 @@ function seed(){
   for(let d=-29; d<=-1; d++){
     const date = iso(addDays(new Date(),d)), dow = parse(date).getDay(), base = parse(date).getTime();
     if(dow===1) continue; // segunda fechado (exemplo)
-    ['u2','u3','u4'].forEach(b=>{
+    ['u2'].forEach(b=>{
       let t = H.open + Math.floor(R()*3)*30; const n = 4+Math.floor(R()*5)+(dow===6?2:0);
       for(let k=0;k<n && t<H.close-60;k++){
         const s = pick(services.slice(0,6));
@@ -607,7 +607,7 @@ function seed(){
   const nowM = new Date().getHours()*60+new Date().getMinutes();
   const slotAgora = Math.max(H.open, Math.min(H.close-60, Math.floor(nowM/30)*30));
   const hoje = [];
-  [['u2',0],['u3',30],['u4',60]].forEach(([b,off],bi)=>{
+  [['u2',0]].forEach(([b,off],bi)=>{
     for(let t=H.open+off; t<=H.close-60; t+=90){
       const s = pick(['s1','s2','s3','s1','s4','s6']);
       const fim = t + (s==='s3'||s==='s4'?60:30);
@@ -618,13 +618,13 @@ function seed(){
   });
   const now = Date.now();
   hoje.forEach(([b,t,s,st,pay,or])=>{ const sv = services.find(x=>x.id===s); const bk = {id:uid(),date:TODAY,time:t,barber:b,cliente:cli(),tel:tel(),service:s,valor:sv.preco,status:st,pay:pay||null,origem:or||'balcao'}; bookings.push(bk); if(st==='concluido' && parse(TODAY).getTime()+toMin(t)*60e3<now) consumo(bk); });
-  [[1,'u3','10:00','s3'],[1,'u4','11:00','s1'],[1,'u2','14:00','s2'],[1,'u2','16:30','s4'],[2,'u3','10:00','s3'],[2,'u4','18:00','s1']]
+  [[1,'u2','10:00','s3'],[1,'u2','11:30','s1'],[1,'u2','14:00','s2'],[1,'u2','16:30','s4'],[2,'u2','10:00','s3'],[2,'u2','18:00','s1']]
     .forEach(([d,b,t,s])=>{ const sv = services.find(x=>x.id===s); bookings.push({id:uid(),date:iso(addDays(new Date(),d)),time:t,barber:b,cliente:cli(),tel:tel(),service:s,valor:sv.preco,status:'agendado',origem:'cliente'}); });
   const t13 = parse(TODAY).getTime()+13*3600e3; if(t13<now) venda(TODAY, t13, 'barbearia', 'u5', 'Pix', [nargaItem(ess[0])]);
   // pedidos de hoje: os antigos já entregues; três em andamento para a fila
   vendas.filter(v=>v.date===TODAY).forEach(v=>{ const bkv = v.booking && bookings.find(b=>b.id===v.booking); v.pedido = {status:'entregue', local:bkv?`Cadeira do ${users.find(u=>u.id===bkv.barber).nome} · ${bkv.cliente}`:'Balcão', resp:'u5', ts:{novo:v.ts, preparando:v.ts+60e3, pronto:v.ts+240e3, entregue:v.ts+300e3}}; });
   const bkAt = bookings.find(b=>b.date===TODAY && b.status==='atendendo');
-  const ped = (min, status, local, itens, pay, booking, resp) => { const ts = now-min*60e3; const v = {id:uid(), date:TODAY, ts, periodo:'barbearia', user:booking?bkAt.barber:'u3', pay, itens, booking:booking||null, total:itens.reduce((a,i)=>a+i.preco*i.qtd,0)};
+  const ped = (min, status, local, itens, pay, booking, resp) => { const ts = now-min*60e3; const v = {id:uid(), date:TODAY, ts, periodo:'barbearia', user:booking?bkAt.barber:'u5', pay, itens, booking:booking||null, total:itens.reduce((a,i)=>a+i.preco*i.qtd,0)};
     v.pedido = {status, local, resp:resp||null, ts:{novo:ts}}; if(resp) v.pedido.ts.preparando = ts+60e3; if(status==='pronto') v.pedido.ts.pronto = now-60e3; vendas.push(v); };
   const heineken = produtos.find(p=>p.id==='b1'), coca = produtos.find(p=>p.id==='b4'), agua = produtos.find(p=>p.id==='b3');
   if(bkAt) ped(6, 'preparando', `Cadeira do ${users.find(u=>u.id===bkAt.barber).nome} · ${bkAt.cliente}`, [barItem(heineken,2)], null, bkAt.id, 'u5');
@@ -963,7 +963,7 @@ try{ const t = localStorage.getItem(KEY+'.theme'); if(t) document.documentElemen
 function loginHTML(){
   document.title = 'Entrar · Barba & Narga';
   const anel = 'BARBEARIA · BAR · NARGA · CLUB SECRETO · EST. 2017 · ';
-  const demo = [['roberto','Roberto','Dono · vê tudo'],['lucas','Lucas','Barbeiro · funcionário'],['matheus','Matheus','Lounge e bar · funcionário']];
+  const demo = [['caio','Caio','Sócio · vê tudo'],['prado','Prado','Sócio · vê tudo'],['pedro','Pedro','Barbeiro · funcionário']];
   return `<main class="login">
     <section class="seal-side" aria-label="Barba & Narga · Club Secreto">
       <div class="grain"></div>
@@ -991,7 +991,7 @@ function loginHTML(){
   </main>`;
 }
 function loginForm(){
-  const demo = [['roberto','Roberto','Dono · vê tudo'],['lucas','Lucas','Barbeiro · funcionário'],['matheus','Matheus','Lounge e bar · funcionário']];
+  const demo = [['caio','Caio','Sócio · vê tudo'],['prado','Prado','Sócio · vê tudo'],['pedro','Pedro','Barbeiro · funcionário']];
   if(oficial() && !SYNC.pronto){
     return `<div class="login-card"><span class="label">Conectando</span><h2 style="margin-top:10px">Carregando a casa…</h2>
       <p class="lead">${SYNC.erro?'Sem conexão com a internet. Assim que voltar, o app carrega sozinho.':'Buscando os dados da Barba &amp; Narga.'}</p>
@@ -1000,8 +1000,8 @@ function loginForm(){
   if(oficial() && !DB.users.length){
     return `<form class="login-card" id="setup" autocomplete="off">
       <div><span class="label">Primeiro acesso</span><h2 style="margin-top:10px">Configurar a casa</h2><p class="lead">Crie o login do dono. Depois você cadastra a equipe, confere preços e faz a contagem do estoque em Ajustes e Estoque.</p></div>
-      <label class="f">Seu nome<input class="in" id="st-n" autocomplete="name" placeholder="ex.: Roberto"></label>
-      <label class="f">Usuário para entrar<input class="in" id="st-u" autocapitalize="none" autocomplete="username" placeholder="ex.: roberto"></label>
+      <label class="f">Seu nome<input class="in" id="st-n" autocomplete="name" placeholder="ex.: Caio"></label>
+      <label class="f">Usuário para entrar<input class="in" id="st-u" autocapitalize="none" autocomplete="username" placeholder="ex.: caio"></label>
       <div class="grid2"><label class="f">Senha<input class="in" id="st-s" type="password" autocomplete="new-password"></label><label class="f">Repita a senha<input class="in" id="st-s2" type="password" autocomplete="new-password"></label></div>
       <div class="err" id="st-err" style="min-height:0"></div>
       <button class="btn pri block" type="submit">Criar e entrar</button>
@@ -1010,7 +1010,7 @@ function loginForm(){
   }
   return `<form class="login-card" id="lf" autocomplete="off">
     <div><span class="label">Área da equipe</span><h2 style="margin-top:10px">Entrar</h2><p class="lead">Cada pessoa da casa tem o seu login.</p></div>
-    <label class="f">Usuário<input class="in" id="lu" autocapitalize="none" autocomplete="username" placeholder="ex.: lucas"></label>
+    <label class="f">Usuário<input class="in" id="lu" autocapitalize="none" autocomplete="username" placeholder="ex.: pedro"></label>
     <label class="f">Senha<input class="in" id="lp" type="password" autocomplete="current-password" placeholder="••••••••"></label>
     <div class="err" id="le" style="min-height:0"></div>
     <button class="btn pri block" type="submit">Entrar</button>
@@ -1387,7 +1387,7 @@ function vendaDialog(opts={}){
     <div>${per==='lounge'?'<span class="pill lou">Conta para o lounge</span>':'<span class="pill mute">Conta para a barbearia</span>'} <span class="note">${bk?'consumo durante o atendimento':`definido pelo horário${per==='lounge'?'':diaDeLounge(Date.now())?`, lounge abre às ${loungeCfg().inicio}`:', hoje não tem lounge'}`}</span></div>
     ${cartHTML()}
     <div class="f"><span class="psub" style="font-weight:600">Levar para onde</span>
-      <input class="in" id="vd-loc" value="${esc(loc0)}" placeholder="Ex.: Mesa 3, Balcão, Cadeira do Lucas" autocomplete="off">
+      <input class="in" id="vd-loc" value="${esc(loc0)}" placeholder="Ex.: Mesa 3, Balcão, Cadeira do Pedro" autocomplete="off">
       ${bk?'':`<div class="chips" id="vd-locs">${locaisSugeridos().map(l=>`<button type="button" class="chip sm" data-l="${esc(l)}">${esc(l)}</button>`).join('')}</div>`}</div>
     ${bk?`<div class="msum"><span class="psub">Pagamento</span><span style="font-weight:600">Cobrado no fim do atendimento</span></div>`
       :`<div class="f"><span class="psub" style="font-weight:600">Pagamento</span><div class="seg" id="vd-pay">${PAYS.map(p=>`<button type="button" data-v="${p}">${p}</button>`).join('')}</div></div>`}
